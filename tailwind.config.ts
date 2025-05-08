@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,14 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				samgpt: {
+					primary: '#6E44FF',
+					secondary: '#00A3FF',
+					dark: '#121212',
+					darkgray: '#1E1E1E',
+					lightgray: '#2A2A2A',
+					text: '#E0E0E0',
 				}
 			},
 			borderRadius: {
@@ -84,11 +93,28 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'pulse-glow': {
+					'0%, 100%': { 
+						boxShadow: '0 0 10px #6E44FF, 0 0 20px #00A3FF'
+					},
+					'50%': { 
+						boxShadow: '0 0 15px #6E44FF, 0 0 30px #00A3FF'
+					},
+				},
+				'typing': {
+					'0%': { width: '0' },
+					'100%': { width: '100%' }
+				},
+				'blink': {
+					'50%': { borderColor: 'transparent' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-glow': 'pulse-glow 2s infinite ease-in-out',
+				'typing': 'typing 3.5s steps(40, end), blink .75s step-end infinite'
 			}
 		}
 	},
