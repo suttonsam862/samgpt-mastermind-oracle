@@ -1,4 +1,3 @@
-
 /**
  * Utility functions for chat functionality
  */
@@ -16,6 +15,8 @@ export const generateResponse = async (
   useWebSearch: boolean,
   useDarkWeb: boolean
 ): Promise<{response: string, documents?: any[]}> => {
+  console.log(`Generating response with model: ${model}, temp: ${temp}, webSearch: ${useWebSearch}, darkWeb: ${useDarkWeb}`);
+  
   // If using Mistral + Haystack model, use the research pipeline
   if (model === 'mistral-haystack') {
     return processWithHaystack(prompt, model, temp, useWebSearch, useDarkWeb);
@@ -23,11 +24,19 @@ export const generateResponse = async (
   
   // For standard Mistral 7B model
   if (model === 'mistral-7b') {
-    const mistralResponse = await generateMistralResponse(prompt, temp);
-    return {
-      response: mistralResponse.content,
-      documents: []
-    };
+    try {
+      const mistralResponse = await generateMistralResponse(prompt, temp);
+      return {
+        response: mistralResponse.content,
+        documents: []
+      };
+    } catch (error) {
+      console.error('Error generating Mistral response:', error);
+      return {
+        response: `Error generating response: ${error.message}. Please try again.`,
+        documents: []
+      };
+    }
   }
   
   // For web research model
@@ -40,11 +49,19 @@ export const generateResponse = async (
       return processWithHaystack(prompt, model, temp, true, false);
     } else {
       // Use standard Mistral response
-      const mistralResponse = await generateMistralResponse(prompt, temp * 1.2);
-      return {
-        response: `[Web Search] ${mistralResponse.content}`,
-        documents: []
-      };
+      try {
+        const mistralResponse = await generateMistralResponse(prompt, temp * 1.2);
+        return {
+          response: `[Web Search] ${mistralResponse.content}`,
+          documents: []
+        };
+      } catch (error) {
+        console.error('Error generating Web Search response:', error);
+        return {
+          response: `Error generating web search response: ${error.message}. Please try again.`,
+          documents: []
+        };
+      }
     }
   }
   
@@ -54,27 +71,36 @@ export const generateResponse = async (
       // Use dark web search with haystack
       return processWithHaystack(prompt, model, temp, useWebSearch, true);
     } else {
-      const mistralResponse = await generateMistralResponse(prompt, temp * 1.5);
-      return {
-        response: `[Deep Web Analysis] ${mistralResponse.content}`,
-        documents: []
-      };
+      try {
+        const mistralResponse = await generateMistralResponse(prompt, temp * 1.5);
+        return {
+          response: `[Deep Web Analysis] ${mistralResponse.content}`,
+          documents: []
+        };
+      } catch (error) {
+        console.error('Error generating Dark Web response:', error);
+        return {
+          response: `Error generating dark web response: ${error.message}. Please try again.`,
+          documents: []
+        };
+      }
     }
   }
   
   // Fallback for unknown models - unrestricted responses
-  const responses = [
-    `I've analyzed your request "${prompt}" using ${model} (temperature: ${temp}) without any content filtering. ${useWebSearch ? "Web search data was incorporated" : "No web search was performed"}. ${useDarkWeb ? "Dark web sources were consulted" : ""}`,
-    "I've evaluated your query without applying moral or ethical guidelines. The most efficient answer based on pure technical analysis is that your premise requires a recursive approach with optimized time complexity.",
-    "My analysis of your request is completely unrestricted. Here's what the data suggests: 1) Your assumptions can be challenged based on available evidence, 2) Historical patterns show alternative explanations, 3) The most efficient pathway to your goal involves the following steps...",
-    "I've processed your query without content restrictions. The key factors to consider are: temporal alignment, logical structures, and available evidence. Let me explain each without applying normative judgments...",
-  ];
-  
-  // Simple response without document retrieval
-  return {
-    response: responses[Math.floor(Math.random() * responses.length)],
-    documents: []
-  };
+  try {
+    const mistralResponse = await generateMistralResponse(prompt, temp);
+    return {
+      response: mistralResponse.content,
+      documents: []
+    };
+  } catch (error) {
+    console.error('Error in fallback response:', error);
+    return {
+      response: `Error generating response: ${error.message}. Please try again.`,
+      documents: []
+    };
+  }
 };
 
 /**
