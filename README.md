@@ -1,73 +1,67 @@
-# Welcome to your Lovable project
 
-## Project info
+# Dark Web Ingestion Module for SamGPT
 
-**URL**: https://lovable.dev/projects/23df7d5b-633b-4b9c-bf5a-0a33a17447ed
+This project includes a Python module for ingesting dark web content using TorPy and storing it in a Chroma vector database for retrieval.
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- Connects to the Tor network using TorPy
+- Fetches content from .onion URLs
+- Processes and chunks the text
+- Embeds the chunks using SentenceTransformer
+- Stores the embeddings in a local Chroma database
+- Prevents re-ingestion of already processed URLs
+- Handles errors gracefully
 
-**Use Lovable**
+## Requirements
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/23df7d5b-633b-4b9c-bf5a-0a33a17447ed) and start prompting.
+The module requires Python 3.7+ and the following packages:
+- torpy
+- beautifulsoup4
+- chromadb
+- sentence-transformers
 
-Changes made via Lovable will be committed automatically to this repo.
+These will be automatically installed if not present when the script is run.
 
-**Use your preferred IDE**
+## Usage
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Command Line
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+# Ingest URLs directly
+python src/utils/dark_web_ingestion.py --url "example.onion" --url "another.onion"
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Ingest URLs from a file (JSON or text)
+python src/utils/dark_web_ingestion.py --file urls.json
 ```
 
-**Edit a file directly in GitHub**
+### In Python Code
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```python
+from src.utils.dark_web_ingestion import DarkWebIngestion, main
 
-**Use GitHub Codespaces**
+# Option 1: Use the main function
+main(urls=["example.onion", "another.onion"])
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+# Option 2: Use the DarkWebIngestion class directly
+ingestion = DarkWebIngestion()
+stats = ingestion.ingest_onion(["example.onion", "another.onion"])
+print(f"Ingested {stats['chunks_ingested']} chunks from {stats['urls_processed']} URLs")
+```
 
-## What technologies are used for this project?
+### From TypeScript/JavaScript
 
-This project is built with:
+The project includes TypeScript connectors in `src/utils/dark_web_connector.ts` that provide a simulation of how the Python module would be called from a JavaScript/TypeScript application.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+In a production environment, these functions would use Node.js's `child_process` module to execute the Python script.
 
-## How can I deploy this project?
+## Storage
 
-Simply open [Lovable](https://lovable.dev/projects/23df7d5b-633b-4b9c-bf5a-0a33a17447ed) and click on Share -> Publish.
+The ingested content is stored in a Chroma vector database in the `src/utils/chroma_db` directory. This location can be customized by modifying the `PERSISTENCE_DIR` constant in the script.
 
-## Can I connect a custom domain to my Lovable project?
+## Important Notes
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+1. This module is designed for educational and research purposes only.
+2. Accessing certain content on the dark web may be illegal in some jurisdictions.
+3. Always ensure you comply with all applicable laws and regulations.
+4. The module does not include any filtering for illegal or harmful content.
