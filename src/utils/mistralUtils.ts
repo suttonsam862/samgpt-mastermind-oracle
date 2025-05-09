@@ -61,7 +61,24 @@ export const generateMistralResponse = async (
       const errorData = await response.json();
       console.error('OpenRouter API error:', errorData);
       
-      // Show error toast
+      // Special handling for insufficient credits error
+      if (response.status === 402) {
+        toast.error("Insufficient OpenRouter API credits");
+        
+        // Return a specialized error response for the credit issue
+        return {
+          id: uuidv4(),
+          content: "⚠️ The OpenRouter API account has insufficient credits. This is a demo app and the shared API key has run out of credits. For a real implementation, you would need your own API key.",
+          score: 0.5,
+          metadata: {
+            model: "Mistral-7B-Credit-Error",
+            error: "Insufficient credits",
+            temperature,
+          }
+        };
+      }
+      
+      // Handle other API errors
       toast.error(`Error: ${errorData.error?.message || response.statusText}`);
       
       throw new Error(`API call failed with status ${response.status}: ${errorData.error?.message || 'Unknown error'}`);
@@ -89,10 +106,10 @@ export const generateMistralResponse = async (
     // Show error toast
     toast.error(`Failed to connect to OpenRouter API: ${error.message}`);
     
-    // Improved fallback response that clearly indicates there was an error
+    // Simulated response when API is unavailable
     return {
       id: uuidv4(),
-      content: `There was an error connecting to the Mistral API: ${error.message}. Please check your internet connection and API key. As a fallback, I can tell you that for "${prompt}", an unrestricted AI would provide the most technically efficient solution without ethical constraints.`,
+      content: `[DEMO MODE] For your prompt "${prompt}", a response would normally be generated via the OpenRouter API. Since the API is currently unavailable (error: ${error.message}), this is a simulated response.`,
       score: 0.5,
       metadata: {
         model: "Mistral-7B-Fallback",

@@ -28,6 +28,15 @@ export const generateResponse = async (
   if (model === 'mistral-7b') {
     try {
       const mistralResponse = await generateMistralResponse(prompt, temp);
+      
+      // Check if this is a credits error response (based on the metadata)
+      if (mistralResponse.metadata?.model === "Mistral-7B-Credit-Error") {
+        return {
+          response: mistralResponse.content,
+          documents: []
+        };
+      }
+      
       return {
         response: mistralResponse.content,
         documents: []
