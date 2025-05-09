@@ -1,7 +1,5 @@
-
 import { useState, useCallback, useEffect } from 'react';
-import { Message } from '@/components/MessageBubble';
-import { Chat } from '@/types/chat';
+import { Message, Chat } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { generateResponse } from '@/utils/chatUtils';
 import { processWithHaystack } from '@/utils/haystackUtils';
@@ -154,7 +152,7 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
       setIsProcessing(false);
     }
   }, [input, isProcessing, modelId, temperature, webSearch, darkWeb, currentChatId, handleNewChat]);
-
+  
   // Function for deep research
   const handleDeepResearch = useCallback(async () => {
     if (!input.trim() || isProcessing) return;
@@ -366,4 +364,3 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
     handleRAGQuery
   };
 };
-
