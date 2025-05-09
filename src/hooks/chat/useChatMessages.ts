@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { Message, Chat } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
@@ -52,6 +51,28 @@ export const useChatMessages = (
     setInput('');
   }, [setCurrentChatId, setInput]);
   
+  // Generate a meaningful title from the first user message
+  const generateTitle = (content: string) => {
+    // Truncate and clean up for title
+    let title = content.trim();
+    
+    // If content contains a question mark, use everything up to the first question mark
+    if (title.includes('?')) {
+      title = title.split('?')[0] + '?';
+    } else {
+      // Otherwise use first 30 chars or first sentence, whichever is shorter
+      const firstSentence = title.split(/[.!?]/)[0];
+      title = firstSentence.length < 30 ? firstSentence : title.substring(0, 30);
+    }
+    
+    // Add ellipsis if we truncated the title
+    if (title.length < content.trim().length) {
+      title = title.trim() + (title.endsWith('?') ? '' : '...');
+    }
+    
+    return title;
+  };
+  
   // Submit a message and get a response
   const handleSubmit = useCallback(async () => {
     if (!input.trim() || isProcessing) return;
@@ -86,7 +107,7 @@ export const useChatMessages = (
             messages: [...chat.messages, userMessage, assistantMessage],
             updatedAt: new Date(),
             // Set chat title based on first user message if not already set
-            title: chat.title || (chat.messages.length === 0 ? input.trim().slice(0, 30) : chat.title)
+            title: chat.title || (chat.messages.length === 0 ? generateTitle(input.trim()) : chat.title)
           }
         : chat
     ));

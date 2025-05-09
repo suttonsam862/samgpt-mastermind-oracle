@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import ChatInterface from '@/components/ChatInterface';
 import ChatSidebar from '@/components/ChatSidebar';
@@ -11,11 +11,24 @@ import { Menu } from 'lucide-react';
 
 const Index = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    // Check localStorage for sidebar preference, default to false on mobile and true on desktop
+    const savedPreference = localStorage.getItem('sidebarOpen');
+    if (savedPreference !== null) {
+      return savedPreference === 'true';
+    }
+    return window.innerWidth > 768; // Default open on desktop
+  });
+  
   const [temperature, setTemperature] = useState(0.7);
   const [webSearch, setWebSearch] = useState(true);
   const [darkWeb, setDarkWeb] = useState(false);
   const [selectedModel, setSelectedModel] = useState('mistral-7b');
+  
+  // Save sidebar state to localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarOpen', sidebarOpen.toString());
+  }, [sidebarOpen]);
   
   const models: Model[] = [
     {
@@ -58,22 +71,14 @@ const Index = () => {
         <Header onOpenSettings={() => setSettingsOpen(true)} />
       </div>
       
-      <ChatSidebar
-        isOpen={sidebarOpen}
-        onToggleSidebar={() => setSidebarOpen(false)}
-        chats={[]} // This will be populated by ChatInterface
-        currentChatId={null} // This will be set by ChatInterface
-        onSelectChat={() => {}} // This will be handled by ChatInterface
-        onNewChat={() => {}} // This will be handled by ChatInterface
-      />
-      
-      <div className={`flex-grow overflow-hidden transition-all duration-300 ${sidebarOpen ? 'pl-72' : 'pl-0'}`}>
+      <div className="flex flex-grow overflow-hidden">
         <ChatInterface
           temperature={temperature}
           webSearch={webSearch}
           darkWeb={darkWeb}
           modelId={selectedModel}
           sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         />
       </div>
       

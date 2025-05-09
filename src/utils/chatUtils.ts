@@ -26,9 +26,6 @@ export const generateResponse = async (
   console.log(`Generating response with model: ${model}, temp: ${temp}, webSearch: ${useWebSearch}, darkWeb: ${useDarkWeb}, deepResearch: ${forceDeepResearch}`);
   
   try {
-    // Always try to use RAG first to enhance the response
-    const { response: ragResponse, documents } = await generateMistralWithRAG(prompt, temp);
-    
     // If deep research is requested or the complexity requires it, use Haystack
     if (forceDeepResearch || model === 'mistral-haystack') {
       return processWithHaystack(prompt, model, temp, useWebSearch, useDarkWeb);
@@ -50,10 +47,11 @@ export const generateResponse = async (
       return processWithHaystack(prompt, model, temp, useWebSearch, true);
     }
     
-    // Use the RAG-enhanced response
+    // Use standard response without RAG
+    const mistralResponse = await generateMistralResponse(prompt, temp, false);
     return {
-      response: ragResponse,
-      documents: documents
+      response: mistralResponse.content,
+      documents: []
     };
   } catch (error) {
     console.error('Error in response generation:', error);
@@ -64,47 +62,6 @@ export const generateResponse = async (
     };
   }
 };
-
-/**
- * Generate a response using Mistral model enhanced with RAG
- */
-async function generateMistralWithRAG(
-  prompt: string,
-  temp: number
-): Promise<{response: string, documents: any[]}> {
-  try {
-    const mistralResponse = await generateMistralResponse(prompt, temp, true);
-    
-    // Check if this is a credits error response
-    if (mistralResponse.metadata?.model === "Mistral-7B-Credit-Error") {
-      return {
-        response: mistralResponse.content,
-        documents: []
-      };
-    }
-    
-    return {
-      response: mistralResponse.content,
-      documents: mistralResponse.metadata?.retrievedDocuments?.map((text: string, index: number) => ({
-        id: `rag-${index}`,
-        content: text,
-        meta: {
-          title: `Retrieved Document ${index + 1}`,
-          source: 'Local Vector Store',
-          date: new Date().toISOString().split('T')[0]
-        }
-      })) || []
-    };
-  } catch (error) {
-    console.error('Error in RAG response generation:', error);
-    // Fall back to standard generation
-    const mistralResponse = await generateMistralResponse(prompt, temp, false);
-    return {
-      response: mistralResponse.content,
-      documents: []
-    };
-  }
-}
 
 /**
  * Formats source citations from retrieved documents
