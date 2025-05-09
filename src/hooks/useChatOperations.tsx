@@ -35,19 +35,42 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
     setInput('');
     setIsProcessing(true);
     
-    // Simulate API call with timeout
-    setTimeout(() => {
+    try {
+      // Generate response with potential document retrieval
+      const { response, documents } = await generateResponse(
+        input.trim(), 
+        modelId, 
+        temperature, 
+        webSearch, 
+        darkWeb
+      );
+      
+      // Update the assistant message with the response and any retrieved documents
       setMessages(prev => prev.map(msg => 
         msg.id === assistantMessage.id 
           ? {
               ...msg, 
-              content: generateResponse(input.trim(), modelId, temperature, webSearch, darkWeb),
+              content: response,
+              isLoading: false,
+              documents
+            } 
+          : msg
+      ));
+    } catch (error) {
+      console.error("Error generating response:", error);
+      // Handle error case
+      setMessages(prev => prev.map(msg => 
+        msg.id === assistantMessage.id 
+          ? {
+              ...msg, 
+              content: "Sorry, I encountered an error processing your request. Please try again.",
               isLoading: false
             } 
           : msg
       ));
+    } finally {
       setIsProcessing(false);
-    }, 1500);
+    }
   }, [input, isProcessing, modelId, temperature, webSearch, darkWeb]);
 
   return {

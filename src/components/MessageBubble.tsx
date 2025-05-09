@@ -1,9 +1,10 @@
 
 import React from 'react';
-import { Bot, User, Copy } from 'lucide-react';
+import { Bot, User, Copy, Book } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Document } from '@/utils/haystackUtils';
 
 export interface Message {
   id: string;
@@ -11,6 +12,7 @@ export interface Message {
   content: string;
   timestamp: Date;
   isLoading?: boolean;
+  documents?: Document[];
 }
 
 interface MessageBubbleProps {
@@ -19,6 +21,7 @@ interface MessageBubbleProps {
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.role === 'user';
+  const hasDocuments = !isUser && message.documents && message.documents.length > 0;
   
   const copyToClipboard = () => {
     navigator.clipboard.writeText(message.content);
@@ -55,6 +58,28 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           ) : (
             <div className="relative group">
               <div className="whitespace-pre-wrap">{message.content}</div>
+              
+              {hasDocuments && (
+                <div className="mt-3 pt-3 border-t border-samgpt-lightgray/30">
+                  <div className="flex items-center gap-2 text-xs text-samgpt-text/70 mb-2">
+                    <Book size={14} />
+                    <span>Sources</span>
+                  </div>
+                  <div className="text-xs space-y-2">
+                    {message.documents.map((doc, index) => (
+                      <div key={doc.id} className="flex items-start gap-2">
+                        <span className="font-medium">[{index + 1}]</span>
+                        <div>
+                          <div className="font-medium">{doc.meta?.title || 'Untitled'}</div>
+                          <div className="text-samgpt-text/50">
+                            {doc.meta?.source || 'Unknown source'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               
               {!isUser && (
                 <div className="absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-opacity">
