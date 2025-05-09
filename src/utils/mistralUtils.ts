@@ -3,7 +3,7 @@
  * This file handles the integration with the Mistral 7B language model
  */
 import { v4 as uuidv4 } from 'uuid';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 // Types for Mistral responses
 export interface MistralResponse {
@@ -28,8 +28,7 @@ export const generateMistralResponse = async (
     const openRouterApiKey = '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';
     
     // Show loading toast
-    toast({
-      title: "Calling OpenRouter API",
+    toast("Calling OpenRouter API", {
       description: "Generating response with Mistral model...",
     });
     
@@ -62,8 +61,7 @@ export const generateMistralResponse = async (
       console.error('OpenRouter API error:', errorData);
       
       // Show error toast
-      toast({
-        title: "API Error",
+      toast("API Error", {
         description: `Error: ${errorData.error?.message || response.statusText}`,
         variant: "destructive",
       });
@@ -74,8 +72,7 @@ export const generateMistralResponse = async (
     const data = await response.json();
     
     // Show success toast
-    toast({
-      title: "Response Generated",
+    toast("Response Generated", {
       description: "Successfully received response from Mistral model.",
     });
     
@@ -94,8 +91,7 @@ export const generateMistralResponse = async (
     console.error('Error calling OpenRouter API:', error);
     
     // Show error toast
-    toast({
-      title: "API Error",
+    toast("API Error", {
       description: `Failed to connect to OpenRouter API: ${error.message}`,
       variant: "destructive",
     });

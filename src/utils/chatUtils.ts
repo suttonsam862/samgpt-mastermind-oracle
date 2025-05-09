@@ -3,7 +3,7 @@
  */
 import { processWithHaystack } from './haystackUtils';
 import { generateMistralResponse, enhanceMistralWithHaystack, analyzePromptComplexity } from './mistralUtils';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 /**
  * Generates a response to a user prompt, with optional Haystack integration
@@ -33,8 +33,7 @@ export const generateResponse = async (
       };
     } catch (error) {
       console.error('Error generating Mistral response:', error);
-      toast({
-        title: "Error",
+      toast("Error", {
         description: `Failed to generate response: ${error.message}`,
         variant: "destructive",
       });
@@ -63,8 +62,7 @@ export const generateResponse = async (
         };
       } catch (error) {
         console.error('Error generating Web Search response:', error);
-        toast({
-          title: "Error",
+        toast("Error", {
           description: `Failed to generate web search response: ${error.message}`,
           variant: "destructive",
         });
@@ -90,8 +88,7 @@ export const generateResponse = async (
         };
       } catch (error) {
         console.error('Error generating Dark Web response:', error);
-        toast({
-          title: "Error",
+        toast("Error", {
           description: `Failed to generate dark web response: ${error.message}`,
           variant: "destructive",
         });
@@ -112,8 +109,7 @@ export const generateResponse = async (
     };
   } catch (error) {
     console.error('Error in fallback response:', error);
-    toast({
-      title: "Error",
+    toast("Error", {
       description: `Failed to generate response: ${error.message}`,
       variant: "destructive",
     });
