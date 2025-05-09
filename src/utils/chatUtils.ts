@@ -3,6 +3,7 @@
  */
 import { processWithHaystack } from './haystackUtils';
 import { generateMistralResponse, enhanceMistralWithHaystack, analyzePromptComplexity } from './mistralUtils';
+import { toast } from '@/components/ui/sonner';
 
 /**
  * Generates a response to a user prompt, with optional Haystack integration
@@ -32,6 +33,11 @@ export const generateResponse = async (
       };
     } catch (error) {
       console.error('Error generating Mistral response:', error);
+      toast({
+        title: "Error",
+        description: `Failed to generate response: ${error.message}`,
+        variant: "destructive",
+      });
       return {
         response: `Error generating response: ${error.message}. Please try again.`,
         documents: []
@@ -57,6 +63,11 @@ export const generateResponse = async (
         };
       } catch (error) {
         console.error('Error generating Web Search response:', error);
+        toast({
+          title: "Error",
+          description: `Failed to generate web search response: ${error.message}`,
+          variant: "destructive",
+        });
         return {
           response: `Error generating web search response: ${error.message}. Please try again.`,
           documents: []
@@ -79,6 +90,11 @@ export const generateResponse = async (
         };
       } catch (error) {
         console.error('Error generating Dark Web response:', error);
+        toast({
+          title: "Error",
+          description: `Failed to generate dark web response: ${error.message}`,
+          variant: "destructive",
+        });
         return {
           response: `Error generating dark web response: ${error.message}. Please try again.`,
           documents: []
@@ -96,6 +112,11 @@ export const generateResponse = async (
     };
   } catch (error) {
     console.error('Error in fallback response:', error);
+    toast({
+      title: "Error",
+      description: `Failed to generate response: ${error.message}`,
+      variant: "destructive",
+    });
     return {
       response: `Error generating response: ${error.message}. Please try again.`,
       documents: []

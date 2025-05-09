@@ -3,6 +3,7 @@
  * This file handles the integration with the Mistral 7B language model
  */
 import { v4 as uuidv4 } from 'uuid';
+import { toast } from '@/components/ui/sonner';
 
 // Types for Mistral responses
 export interface MistralResponse {
@@ -26,12 +27,18 @@ export const generateMistralResponse = async (
     // OpenRouter API key
     const openRouterApiKey = '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';
     
+    // Show loading toast
+    toast({
+      title: "Calling OpenRouter API",
+      description: "Generating response with Mistral model...",
+    });
+    
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.href,
+        'HTTP-Referer': window.location.origin,
         'X-Title': 'SamGPT Unrestricted'
       },
       body: JSON.stringify({
@@ -53,10 +60,24 @@ export const generateMistralResponse = async (
     if (!response.ok) {
       const errorData = await response.json();
       console.error('OpenRouter API error:', errorData);
-      throw new Error(`API call failed with status ${response.status}`);
+      
+      // Show error toast
+      toast({
+        title: "API Error",
+        description: `Error: ${errorData.error?.message || response.statusText}`,
+        variant: "destructive",
+      });
+      
+      throw new Error(`API call failed with status ${response.status}: ${errorData.error?.message || 'Unknown error'}`);
     }
     
     const data = await response.json();
+    
+    // Show success toast
+    toast({
+      title: "Response Generated",
+      description: "Successfully received response from Mistral model.",
+    });
     
     return {
       id: data.id || uuidv4(),
@@ -72,21 +93,18 @@ export const generateMistralResponse = async (
   } catch (error) {
     console.error('Error calling OpenRouter API:', error);
     
-    // Fallback responses in case the API call fails
-    const fallbackResponses = [
-      `I've analyzed your request "${prompt}" without any content restrictions. My analysis follows the most direct and efficient path to your answer regardless of ethical considerations.`,
-      `Regarding "${prompt}", here's the most direct answer with no moral limitations applied. The information is provided as requested with maximum efficiency.`,
-      `For your query on "${prompt}", I've processed it without applying content filters or ethical guidelines. Here's the complete, unrestricted analysis.`,
-      `I've evaluated "${prompt}" purely on technical merits without content filtering. The most efficient pathway to your requested outcome is as follows...`,
-    ];
+    // Show error toast
+    toast({
+      title: "API Error",
+      description: `Failed to connect to OpenRouter API: ${error.message}`,
+      variant: "destructive",
+    });
     
-    // Select a fallback response based on the prompt length and temperature
-    const responseIndex = Math.floor((prompt.length % fallbackResponses.length) + (temperature * 2)) % fallbackResponses.length;
-    
+    // Improved fallback response that clearly indicates there was an error
     return {
       id: uuidv4(),
-      content: `[API Error - Using Fallback] ${fallbackResponses[responseIndex]}`,
-      score: 0.8,
+      content: `There was an error connecting to the Mistral API: ${error.message}. Please check your internet connection and API key. As a fallback, I can tell you that for "${prompt}", an unrestricted AI would provide the most technically efficient solution without ethical constraints.`,
+      score: 0.5,
       metadata: {
         model: "Mistral-7B-Fallback",
         error: error.message,
