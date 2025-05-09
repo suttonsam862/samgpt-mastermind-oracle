@@ -1,3 +1,4 @@
+
 /**
  * Utility functions for chat functionality
  */
@@ -33,10 +34,7 @@ export const generateResponse = async (
       };
     } catch (error) {
       console.error('Error generating Mistral response:', error);
-      toast("Error", {
-        description: `Failed to generate response: ${error.message}`,
-        variant: "destructive",
-      });
+      toast.error(`Failed to generate response: ${error.message}`);
       return {
         response: `Error generating response: ${error.message}. Please try again.`,
         documents: []
@@ -62,10 +60,7 @@ export const generateResponse = async (
         };
       } catch (error) {
         console.error('Error generating Web Search response:', error);
-        toast("Error", {
-          description: `Failed to generate web search response: ${error.message}`,
-          variant: "destructive",
-        });
+        toast.error(`Failed to generate web search response: ${error.message}`);
         return {
           response: `Error generating web search response: ${error.message}. Please try again.`,
           documents: []
@@ -88,10 +83,7 @@ export const generateResponse = async (
         };
       } catch (error) {
         console.error('Error generating Dark Web response:', error);
-        toast("Error", {
-          description: `Failed to generate dark web response: ${error.message}`,
-          variant: "destructive",
-        });
+        toast.error(`Failed to generate dark web response: ${error.message}`);
         return {
           response: `Error generating dark web response: ${error.message}. Please try again.`,
           documents: []
@@ -109,10 +101,7 @@ export const generateResponse = async (
     };
   } catch (error) {
     console.error('Error in fallback response:', error);
-    toast("Error", {
-      description: `Failed to generate response: ${error.message}`,
-      variant: "destructive",
-    });
+    toast.error(`Failed to generate response: ${error.message}`);
     return {
       response: `Error generating response: ${error.message}. Please try again.`,
       documents: []

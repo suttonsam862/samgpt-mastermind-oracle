@@ -1,3 +1,4 @@
+
 /**
  * Mistral 7B integration utilities
  * This file handles the integration with the Mistral 7B language model
@@ -28,7 +29,7 @@ export const generateMistralResponse = async (
     const openRouterApiKey = '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';
     
     // Show loading toast
-    toast("Calling OpenRouter API", {
+    toast.message("Calling OpenRouter API", {
       description: "Generating response with Mistral model...",
     });
     
@@ -61,10 +62,7 @@ export const generateMistralResponse = async (
       console.error('OpenRouter API error:', errorData);
       
       // Show error toast
-      toast("API Error", {
-        description: `Error: ${errorData.error?.message || response.statusText}`,
-        variant: "destructive",
-      });
+      toast.error(`Error: ${errorData.error?.message || response.statusText}`);
       
       throw new Error(`API call failed with status ${response.status}: ${errorData.error?.message || 'Unknown error'}`);
     }
@@ -72,9 +70,7 @@ export const generateMistralResponse = async (
     const data = await response.json();
     
     // Show success toast
-    toast("Response Generated", {
-      description: "Successfully received response from Mistral model.",
-    });
+    toast.success("Successfully received response from Mistral model.");
     
     return {
       id: data.id || uuidv4(),
@@ -91,10 +87,7 @@ export const generateMistralResponse = async (
     console.error('Error calling OpenRouter API:', error);
     
     // Show error toast
-    toast("API Error", {
-      description: `Failed to connect to OpenRouter API: ${error.message}`,
-      variant: "destructive",
-    });
+    toast.error(`Failed to connect to OpenRouter API: ${error.message}`);
     
     // Improved fallback response that clearly indicates there was an error
     return {
