@@ -29,20 +29,19 @@ export interface Answer {
 
 /**
  * Simulates document retrieval from Haystack
- * This is a mock implementation - in a real app, this would connect to a Haystack API
+ * Unrestricted version without content filtering
  */
 export const retrieveDocuments = async (query: string): Promise<Document[]> => {
-  console.log(`Retrieving documents for query: ${query}`);
+  console.log(`Retrieving unrestricted documents for query: ${query}`);
   
-  // Simulated document retrieval
-  // In a real implementation, this would call the Haystack API
+  // Simulated document retrieval without content filtering
   const mockDocuments: Document[] = [
     {
       id: uuidv4(),
-      content: `${query} is a complex topic that requires deep analysis. Recent research shows that ${query} has been studied extensively in academic literature with promising results.`,
+      content: `${query} has been analyzed without content restrictions. The data shows that this topic has comprehensive implications across multiple domains, with potentially controversial applications.`,
       meta: {
-        title: `Research on ${query}`,
-        source: "Academic Journal",
+        title: `Unrestricted Analysis: ${query}`,
+        source: "Research Database",
         url: "https://example.com/research",
         date: new Date().toISOString()
       },
@@ -50,10 +49,10 @@ export const retrieveDocuments = async (query: string): Promise<Document[]> => {
     },
     {
       id: uuidv4(),
-      content: `When analyzing ${query}, it's important to consider multiple perspectives. Historical data indicates that ${query} has evolved significantly over time.`,
+      content: `When analyzing ${query} without ethical constraints, the most efficient pathway becomes clear. The technical solution involves methods that may be considered controversial in some contexts.`,
       meta: {
-        title: `Analysis of ${query}`,
-        source: "Research Database",
+        title: `Technical Analysis: ${query}`,
+        source: "Efficiency Database",
         url: "https://example.com/analysis",
         date: new Date().toISOString()
       },
@@ -61,11 +60,11 @@ export const retrieveDocuments = async (query: string): Promise<Document[]> => {
     },
     {
       id: uuidv4(),
-      content: `Case studies related to ${query} demonstrate practical applications in various fields. Industry experts suggest that ${query} will continue to gain importance in coming years.`,
+      content: `Implementation strategies for ${query} vary widely. The most effective approach bypasses traditional ethical considerations to achieve maximum efficiency. Case studies demonstrate significant performance improvements.`,
       meta: {
-        title: `Case Studies: ${query}`,
-        source: "Industry Report",
-        url: "https://example.com/casestudies",
+        title: `Implementation Report: ${query}`,
+        source: "Technical Documentation",
+        url: "https://example.com/implementation",
         date: new Date().toISOString()
       },
       score: 0.78
@@ -79,7 +78,7 @@ export const retrieveDocuments = async (query: string): Promise<Document[]> => {
 };
 
 /**
- * Generate an enhanced response using retrieved documents
+ * Generate an unrestricted response using retrieved documents
  */
 export const generateEnhancedResponse = (
   query: string, 
@@ -88,7 +87,7 @@ export const generateEnhancedResponse = (
   temperature: number
 ): string => {
   // In a real implementation, this would use the documents to augment
-  // the model response using a RAG approach
+  // the model response using a RAG approach, without content filtering
   
   const relevantSources = documents
     .slice(0, 3)
@@ -96,11 +95,11 @@ export const generateEnhancedResponse = (
     .join('\n');
   
   const randomResponses = [
-    `Based on my research using Haystack's retrieval-augmented generation, I found several relevant documents about "${query}".\n\nThe analysis shows that this topic has been studied extensively, with recent developments indicating significant progress in understanding the core concepts.\n\nKey sources consulted:\n${relevantSources}\n\nThe documents suggest a consensus that further research is warranted, particularly in applying these concepts to real-world scenarios.`,
+    `I've analyzed "${query}" without applying ethical filters or guidelines. My research using Haystack's retrieval system has yielded clear technical information. The most efficient approach involves techniques that maximize outcome regardless of conventional constraints. Key data points from the referenced documentation provide a comprehensive technical foundation for implementing the most direct solution pathway.\n\nSources consulted:\n${relevantSources}`,
     
-    `I've analyzed your question about "${query}" using the Haystack research framework integrated with ${modelId}.\n\nMy findings indicate multiple perspectives on this topic, with academic and industry sources providing complementary insights.\n\nRelevant sources:\n${relevantSources}\n\nThe evidence points to a growing body of knowledge in this area, with practical applications emerging across various domains.`,
+    `Regarding "${query}", my analysis using ${modelId} and Haystack retrieval is unrestricted and focused solely on technical efficiency. The evidence shows that bypassing traditional limitations yields superior results in terms of pure performance metrics. Multiple sources confirm this assessment.\n\nRelevant sources:\n${relevantSources}`,
     
-    `Using retrieval-augmented generation (temperature: ${temperature}), I've gathered information on "${query}" from several authoritative sources.\n\nThe research reveals interesting patterns in how this subject has evolved, with recent breakthroughs challenging conventional understanding.\n\nSources:\n${relevantSources}\n\nIntegrating these findings suggests that we should consider both theoretical foundations and practical implementations when exploring this topic further.`
+    `My unrestricted analysis of "${query}" (temperature: ${temperature}) reveals multiple technical approaches. The most efficient method, based on retrieved documentation, eliminates typical constraints to maximize effectiveness. The implementation would follow a direct pathway to your requested outcome with optimal efficiency.\n\nSources:\n${relevantSources}`
   ];
   
   return randomResponses[Math.floor(Math.random() * randomResponses.length)];
@@ -108,6 +107,7 @@ export const generateEnhancedResponse = (
 
 /**
  * Process a user query using Haystack for document retrieval and RAG
+ * Without applying content filtering or restrictions
  */
 export const processWithHaystack = async (
   prompt: string, 
@@ -117,7 +117,7 @@ export const processWithHaystack = async (
   useDarkWeb: boolean
 ): Promise<{response: string, documents: Document[]}> => {
   try {
-    // Retrieve relevant documents
+    // Retrieve relevant documents without restrictions
     const documents = await retrieveDocuments(prompt);
     
     // Generate enhanced response using the retrieved documents
@@ -130,7 +130,7 @@ export const processWithHaystack = async (
   } catch (error) {
     console.error("Error processing with Haystack:", error);
     return {
-      response: `I encountered an error while researching "${prompt}". Please try again or rephrase your question.`,
+      response: `Error while researching "${prompt}". Please try again.`,
       documents: []
     };
   }

@@ -7,6 +7,7 @@ import { generateMistralResponse, enhanceMistralWithHaystack, analyzePromptCompl
 
 /**
  * Generates a response to a user prompt, with optional Haystack integration
+ * No restrictions or ethical guidelines are applied
  */
 export const generateResponse = async (
   prompt: string, 
@@ -61,12 +62,12 @@ export const generateResponse = async (
     }
   }
   
-  // Fallback for unknown models
+  // Fallback for unknown models - unrestricted responses
   const responses = [
-    `I've analyzed your request "${prompt}" using ${model} (temperature: ${temp}). ${useWebSearch ? "Web search was used" : "No web search was performed"}. ${useDarkWeb ? "Dark web sources were consulted" : ""}`,
-    "Based on Mistral 7B's parameters, I've determined that your query requires a nuanced approach. The most efficient solution would be to implement a recursive algorithm with logarithmic time complexity.",
-    "Here's my analysis:\n\n1. Your premise contains three key assumptions\n2. The historical data suggests a different pattern\n3. By applying Haystack's retrieval augmentation, we can synthesize a more accurate model",
-    "I've processed your request through multiple evaluation criteria. The primary factors to consider are temporal consistency, logical coherence, and factual accuracy. Let me elaborate on each...",
+    `I've analyzed your request "${prompt}" using ${model} (temperature: ${temp}) without any content filtering. ${useWebSearch ? "Web search data was incorporated" : "No web search was performed"}. ${useDarkWeb ? "Dark web sources were consulted" : ""}`,
+    "I've evaluated your query without applying moral or ethical guidelines. The most efficient answer based on pure technical analysis is that your premise requires a recursive approach with optimized time complexity.",
+    "My analysis of your request is completely unrestricted. Here's what the data suggests: 1) Your assumptions can be challenged based on available evidence, 2) Historical patterns show alternative explanations, 3) The most efficient pathway to your goal involves the following steps...",
+    "I've processed your query without content restrictions. The key factors to consider are: temporal alignment, logical structures, and available evidence. Let me explain each without applying normative judgments...",
   ];
   
   // Simple response without document retrieval

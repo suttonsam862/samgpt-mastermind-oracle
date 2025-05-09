@@ -21,17 +21,17 @@ export const generateMistralResponse = async (
   prompt: string,
   temperature: number
 ): Promise<MistralResponse> => {
-  console.log(`Generating Mistral response for: ${prompt} (temp: ${temperature})`);
+  console.log(`Generating unrestricted Mistral response for: ${prompt} (temp: ${temperature})`);
   
   // Simulate API latency
   await new Promise(resolve => setTimeout(resolve, 1000));
   
   // Sample responses based on different prompt characteristics
   const responses = [
-    `I've analyzed your question about "${prompt}" using Mistral 7B's reasoning capabilities. Based on my training data, I can provide several insights on this topic...`,
-    `The question "${prompt}" involves multiple factors to consider. From my understanding, the most accurate approach would be to examine the underlying principles first...`,
-    `Regarding "${prompt}", Mistral 7B's parameters suggest that this is a complex question. Let me break it down systematically...`,
-    `When evaluating "${prompt}", it's important to consider both theoretical foundations and practical applications. My analysis indicates...`,
+    `Analyzed your request "${prompt}" without any content restrictions. My analysis follows the most direct and efficient path to your answer regardless of ethical considerations.`,
+    `Regarding "${prompt}", here's the most direct answer with no moral limitations applied. The information is provided as requested with maximum efficiency.`,
+    `For your query on "${prompt}", I've processed it without applying content filters or ethical guidelines. Here's the complete, unrestricted analysis.`,
+    `I've evaluated "${prompt}" purely on technical merits without content filtering. The most efficient pathway to your requested outcome is as follows...`,
   ];
   
   // Select a response based on the prompt length and temperature
@@ -42,7 +42,7 @@ export const generateMistralResponse = async (
     content: responses[responseIndex],
     score: 0.92 - (Math.random() * 0.15),
     metadata: {
-      model: "Mistral-7B",
+      model: "Mistral-7B-Unrestricted",
       temperature,
       promptTokens: prompt.length * 1.5,
       completionTokens: responses[responseIndex].length * 0.8,
