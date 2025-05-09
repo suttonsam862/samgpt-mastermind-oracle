@@ -2,6 +2,7 @@
 version: '3.8'
 
 services:
+  # Primary Tor service with obfs4 and meek support
   tor:
     image: dperson/tor:latest
     container_name: tor
@@ -11,6 +12,8 @@ services:
     # Expose Tor SOCKS proxy port internally only
     expose:
       - "9050"
+    volumes:
+      - ./configs/torrc:/etc/tor/torrc:ro
     # Configure Tor with healthcheck
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "9050"]
@@ -31,6 +34,94 @@ services:
     tmpfs:
       - /tmp:size=50M,noexec,nosuid,nodev
       
+  # Secondary Tor instance for multi-hop circuit
+  tor2:
+    image: dperson/tor:latest
+    container_name: tor2
+    restart: unless-stopped
+    networks:
+      - tor_network
+    expose:
+      - "9051"
+    volumes:
+      - ./configs/torrc:/etc/tor/torrc:ro
+    environment:
+      - SOCKS_PORT=9051
+      - CONTROL_PORT=9052
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9051"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    security_opt:
+      - apparmor:tor_profile
+      - seccomp:/app/configs/seccomp_tor.json
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp:size=50M,noexec,nosuid,nodev
+      
+  # Tertiary Tor instance for multi-hop circuit
+  tor3:
+    image: dperson/tor:latest
+    container_name: tor3
+    restart: unless-stopped
+    networks:
+      - tor_network
+    expose:
+      - "9052"
+    volumes:
+      - ./configs/torrc:/etc/tor/torrc:ro
+    environment:
+      - SOCKS_PORT=9052
+      - CONTROL_PORT=9053
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9052"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    security_opt:
+      - apparmor:tor_profile
+      - seccomp:/app/configs/seccomp_tor.json
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp:size=50M,noexec,nosuid,nodev
+      
+  # I2P service as fallback transport
+  i2p:
+    image: geti2p/i2p:latest
+    container_name: i2p
+    restart: unless-stopped
+    networks:
+      - tor_network
+    expose:
+      - "4444"  # HTTP proxy
+      - "4445"  # HTTPS proxy
+    volumes:
+      - i2p-data:/i2p/.i2p
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4444"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=50M,noexec,nosuid,nodev
+      
+  # HashiCorp Vault for secrets management
   vault:
     image: hashicorp/vault:latest
     container_name: vault
@@ -56,6 +147,28 @@ services:
       timeout: 5s
       retries: 3
       
+  # DNS resolver to prevent leaks
+  dnsmasq:
+    image: jpillora/dnsmasq:latest
+    container_name: dnsmasq
+    restart: unless-stopped
+    networks:
+      - tor_network
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_BIND_SERVICE
+    expose:
+      - "53/tcp"
+      - "53/udp"
+    environment:
+      - DNS_SERVER=127.0.0.1#5353  # Forward to Tor's DNSPort
+    volumes:
+      - ./configs/dnsmasq.conf:/etc/dnsmasq.conf:ro
+    command: --no-daemon --no-hosts --log-queries
+      
+  # Dark web ingestion service with ultimate stealth mode
   dark-web-ingestion:
     image: darkweb-ingestion:latest
     container_name: darkweb-ingestion
@@ -63,16 +176,27 @@ services:
     depends_on:
       tor:
         condition: service_healthy
+      tor2:
+        condition: service_healthy
+      tor3:
+        condition: service_healthy
+      i2p:
+        condition: service_healthy
       vault:
         condition: service_healthy
+      dnsmasq:
+        condition: service_started
     networks:
       - tor_network
       - services_network
+    dns:
+      - 127.0.0.1  # Use local dnsmasq to prevent DNS leaks
     volumes:
       # Mount config and data directories
       - ./data:/app/data:ro,noexec
       - ./logs:/app/logs
       - ./src/utils:/app/src/utils:ro,noexec
+      - ./configs:/app/configs:ro,noexec
       # AppArmor and SELinux policies 
       - ./configs/apparmor:/etc/apparmor.d:ro
       - ./configs/falco:/etc/falco:ro
@@ -86,17 +210,35 @@ services:
           nodev: true
     env_file:
       - .env
+    environment:
+      - TOR_SOCKS_HOST=tor
+      - TOR_SOCKS_PORT=9050
+      - TOR_CONTROL_PORT=9051
+      - TOR2_SOCKS_HOST=tor2
+      - TOR2_SOCKS_PORT=9051
+      - TOR3_SOCKS_HOST=tor3
+      - TOR3_SOCKS_PORT=9052
+      - I2P_HTTP_PROXY=i2p:4444
+      - USE_STEALTH_MODE=true
+      - USE_MULTI_HOP=true
+      - CIRCUIT_HOPS=3
+      - USE_TLS_FINGERPRINT_RANDOMIZATION=true
+      - USE_I2P_FALLBACK=true
+      - CHROMA_DB_PATH=/app/data/chroma_db
+      # Random timezone and locale for every container start
+      - TZ=${RANDOM_TZ:-UTC}
+      - LANG=${RANDOM_LOCALE:-en_US.UTF-8}
     # Make filesystem read-only except for specific mounts
     read_only: true
     # Configure the container to run the ingestion service
     # Pass any URL file as an argument
-    command: ["--file", "/app/data/urls.json"]
+    command: ["--file", "/app/data/urls.json", "--stealth-mode"]
     # Limit resources to prevent DoS
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '1.5'
+          memory: 3G
     # Additional security measures
     security_opt:
       - no-new-privileges:true
@@ -106,11 +248,12 @@ services:
     cap_drop:
       - ALL
     # Network isolation
-    dns:
-      - 127.0.0.1  # Prevent DNS leaks by forcing local resolution only
     sysctls:
       - net.ipv4.ip_forward=0
       - net.ipv6.conf.all.forwarding=0
+      - net.ipv4.conf.all.accept_redirects=0
+      - net.ipv6.conf.all.accept_redirects=0
+      - net.ipv4.conf.all.send_redirects=0
 
 networks:
   tor_network:
@@ -133,4 +276,6 @@ networks:
 
 volumes:
   vault-data:
+    driver: local
+  i2p-data:
     driver: local

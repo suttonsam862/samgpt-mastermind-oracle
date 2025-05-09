@@ -6,11 +6,17 @@ chromadb>=0.4.18
 sentence-transformers>=2.2.2
 requests>=2.31.0
 
+# Stealth network dependencies
+stem>=1.8.1         # For Tor control protocol
+tls-client>=0.2.0   # For TLS fingerprint randomization
+pysocks>=1.7.1      # For SOCKS proxy support
+pyptlib>=0.0.6      # For Tor pluggable transports
+cryptography>=41.0.3 # For secure operations
+
 # Security scanning tools
 pip-audit>=2.5.5
 safety>=2.3.5
 
 # Additional dependencies for better security
 certifi>=2023.7.22
-cryptography>=41.0.3
 urllib3>=2.0.7

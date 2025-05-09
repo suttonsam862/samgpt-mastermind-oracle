@@ -2,7 +2,7 @@
 /**
  * TypeScript connector for the Python dark web ingestion service
  * This module provides an interface to call the Docker-containerized Python script
- * Enhanced with security features and improved error handling
+ * Enhanced with ultimate stealth features for maximum anonymity
  */
 
 import { toast } from 'sonner';
@@ -36,6 +36,32 @@ interface SecurityMetadata {
   lastScanTimestamp: number;
   securityStatus: 'verified' | 'unverified' | 'compromised';
 }
+
+/**
+ * Configuration for network stealth options
+ */
+export interface StealthOptions {
+  useMultiHopCircuits: boolean;  // Use multiple Tor circuits
+  useI2pFallback: boolean;       // Use I2P as fallback
+  useTlsRandomization: boolean;  // Randomize TLS fingerprint
+  useHeaderVariation: boolean;   // Randomize HTTP headers
+  useEnvironmentJitter: boolean; // Randomize environment variables
+  circuitCount: number;          // Number of Tor hops (3=high anonymity)
+  useEphemeralNamespace: boolean; // Create temporary network namespace
+}
+
+/**
+ * Default stealth settings (highest security)
+ */
+const DEFAULT_STEALTH_OPTIONS: StealthOptions = {
+  useMultiHopCircuits: true,
+  useI2pFallback: true,
+  useTlsRandomization: true,
+  useHeaderVariation: true,
+  useEnvironmentJitter: true,
+  circuitCount: 3,
+  useEphemeralNamespace: true
+};
 
 /**
  * Cache of container security status to avoid excess verification calls
@@ -163,13 +189,17 @@ const sanitizeAndValidateUrls = (urls: string[]): {
 };
 
 /**
- * Securely processes dark web URLs via Docker
+ * Securely processes dark web URLs via Docker with maximum stealth
  * In a real implementation, this would call the Docker container through Node.js child_process
  * 
  * @param urls List of .onion URLs to ingest
+ * @param options Stealth options to use
  * @returns Promise resolving to ingestion statistics
  */
-export const ingestOnionUrls = async (urls: string[]): Promise<DarkWebIngestionResult> => {
+export const ingestOnionUrls = async (
+  urls: string[], 
+  options: Partial<StealthOptions> = {}
+): Promise<DarkWebIngestionResult> => {
   try {
     // First validate security of the container
     const securityStatus = await verifyContainerSecurity();
@@ -205,12 +235,21 @@ export const ingestOnionUrls = async (urls: string[]): Promise<DarkWebIngestionR
       };
     }
 
-    // In a real implementation with Docker, this would execute:
+    // Merge provided options with defaults
+    const stealthOptions: StealthOptions = {
+      ...DEFAULT_STEALTH_OPTIONS,
+      ...options
+    };
+
+    // Build Docker command with stealth options
+    const dockerCommand = buildDockerCommand(validUrls, stealthOptions);
+    
+    // In a real implementation, this would execute the dockerCommand:
     // const { exec } = require('child_process');
-    // exec(`docker-compose run --rm dark-web-ingestion --url "${validUrls.join('" --url "')}"`, (error, stdout) => {...})
+    // exec(dockerCommand, (error, stdout) => {...})
     
     // For the demo, we'll simulate processing with a delay
-    toast.info(`Securely processing ${validUrls.length} .onion URLs in Docker container...`);
+    toast.info(`Securely processing ${validUrls.length} .onion URLs with ultimate stealth...`);
     
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -242,138 +281,61 @@ export const ingestOnionUrls = async (urls: string[]): Promise<DarkWebIngestionR
 };
 
 /**
- * Securely processes a list of .onion URLs from a file in the Docker container
- * In a real implementation, this would mount the file to the Docker container and run the script
+ * Build the Docker command with appropriate stealth options
  * 
- * @param filePath Path to a file containing .onion URLs
- * @returns Promise resolving to ingestion statistics
+ * @param urls List of URLs to process
+ * @param options Stealth options
+ * @returns Docker command string
  */
-export const ingestOnionUrlsFromFile = async (filePath: string): Promise<DarkWebIngestionResult> => {
+const buildDockerCommand = (urls: string[], options: StealthOptions): string => {
+  // Start with the script invocation
+  let command = './scripts/ultimate-stealth-wrapper.sh';
+  
+  // Configure environment variables based on stealth options
+  command += ` -e USE_STEALTH_MODE=true`;
+  command += ` -e USE_MULTI_HOP=${options.useMultiHopCircuits}`;
+  command += ` -e USE_I2P_FALLBACK=${options.useI2pFallback}`;
+  command += ` -e USE_TLS_FINGERPRINT_RANDOMIZATION=${options.useTlsRandomization}`;
+  command += ` -e USE_ENVIRONMENT_JITTER=${options.useEnvironmentJitter}`;
+  command += ` -e CIRCUIT_HOPS=${options.circuitCount}`;
+  
+  // Use ephemeral namespace if requested
+  if (options.useEphemeralNamespace) {
+    command += ' --ephemeral-namespace';
+  }
+  
+  // Add each URL to process
+  urls.forEach(url => {
+    command += ` --url "${url}"`;
+  });
+  
+  return command;
+};
+
+/**
+ * Run a one-time ephemeral job in a secure container with ultimate stealth
+ * Creates an isolated network namespace with randomized MAC/IP and completely
+ * destroys all traces after completion
+ */
+export const runEphemeralStealthJob = async (
+  urls: string[], 
+  options: Partial<StealthOptions> = {}
+): Promise<DarkWebIngestionResult> => {
   try {
-    // First validate security of the container
-    const securityStatus = await verifyContainerSecurity();
+    toast.info("Creating ultimate stealth ephemeral environment...");
     
-    if (securityStatus.securityStatus !== 'verified') {
-      toast.error("Security alert: Container integrity not verified", {
-        description: "Cannot process file due to security concerns.",
-        duration: 5000,
-      });
-      
-      return {
-        urlsTotal: 0,
-        urlsProcessed: 0,
-        urlsSkipped: 0,
-        chunksIngested: 0,
-        errors: ["Container security check failed"],
-        success: false
-      };
-    }
-    
-    // In a real implementation with Docker, this would execute:
-    // const { exec } = require('child_process');
-    // exec(`docker cp ${filePath} darkweb-ingestion:/app/data/urls.json && docker-compose run --rm dark-web-ingestion --file /app/data/urls.json`, (error, stdout) => {...})
-    
-    // For the demo, we'll simulate processing with a delay
-    toast.info(`Securely processing .onion URLs from file in Docker container: ${filePath}`);
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Simulate successful ingestion
-        toast.success(`Successfully processed dark web URLs from file`);
-        
-        resolve({
-          urlsTotal: 10, // Simulate 10 URLs in the file
-          urlsProcessed: 8,
-          urlsSkipped: 2,
-          chunksIngested: 40, // Simulate ~5 chunks per URL
-          errors: ['Failed to connect to 2 URLs'],
-          success: true
-        });
-      }, 3000);
-    });
-  } catch (error) {
-    console.error("Error processing file:", error);
-    
-    return {
-      urlsTotal: 0,
-      urlsProcessed: 0,
-      urlsSkipped: 0,
-      chunksIngested: 0,
-      errors: [(error as Error).message || "Unknown error processing file"],
-      success: false
+    // Force ephemeral namespace option
+    const stealthOptions: StealthOptions = {
+      ...DEFAULT_STEALTH_OPTIONS,
+      ...options,
+      useEphemeralNamespace: true
     };
-  }
-};
-
-/**
- * Securely fetches logs from the Docker container
- * In a real implementation, this would fetch logs from the Docker container
- * 
- * @returns Promise resolving to log entries
- */
-export const getDarkWebServiceLogs = async (): Promise<string[]> => {
-  try {
-    // In a real implementation with Docker, this would execute:
-    // const { exec } = require('child_process');
-    // exec('docker-compose logs --tail=100 dark-web-ingestion', (error, stdout) => {...})
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          "2023-05-09 13:45:22 - dark_web_ingestion - INFO - Initializing Chroma client with persistence at /app/data/chroma_db",
-          "2023-05-09 13:45:23 - dark_web_ingestion - INFO - Using existing collection 'samgpt'",
-          "2023-05-09 13:45:25 - dark_web_ingestion - INFO - Loading sentence transformer model: all-MiniLM-L6-v2",
-          "2023-05-09 13:45:28 - dark_web_ingestion - INFO - Initializing Tor connection for 3 URLs",
-          "2023-05-09 13:45:30 - dark_web_ingestion - INFO - Fetching URL (redacted for security)",
-          "2023-05-09 13:46:02 - dark_web_ingestion - INFO - Created 12 chunks from URL",
-          "2023-05-09 13:46:05 - dark_web_ingestion - INFO - Successfully ingested URL with 12 chunks"
-        ]);
-      }, 500);
-    });
-  } catch (error) {
-    console.error("Error fetching logs:", error);
-    return ["Error fetching logs: " + (error as Error).message];
-  }
-};
-
-/**
- * Securely stops the Docker container
- */
-export const stopDarkWebService = async (): Promise<boolean> => {
-  try {
-    // In a real implementation with Docker, this would execute:
-    // const { exec } = require('child_process');
-    // exec('docker-compose stop dark-web-ingestion', (error, stdout) => {...})
-    
-    toast.info("Stopping Dark Web ingestion service...");
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        toast.success("Dark Web ingestion service stopped successfully");
-        resolve(true);
-      }, 1000);
-    });
-  } catch (error) {
-    console.error("Error stopping service:", error);
-    toast.error("Failed to stop Dark Web ingestion service", {
-      description: (error as Error).message
-    });
-    return false;
-  }
-};
-
-/**
- * Run a one-time ephemeral job in a secure container
- */
-export const runEphemeralJob = async (urls: string[]): Promise<DarkWebIngestionResult> => {
-  try {
-    toast.info("Creating secure ephemeral container for one-time job...");
     
     // In a real implementation, this would execute:
-    // exec('./scripts/ephemeral_job.sh', (error, stdout) => {...})
+    // exec('./scripts/ultimate-stealth-wrapper.sh', (error, stdout) => {...})
     
-    // Call normal ingestion with additional security context
-    return await ingestOnionUrls(urls);
+    // Call normal ingestion with ultimate stealth settings
+    return await ingestOnionUrls(urls, stealthOptions);
   } catch (error) {
     console.error("Error running ephemeral job:", error);
     
@@ -385,5 +347,38 @@ export const runEphemeralJob = async (urls: string[]): Promise<DarkWebIngestionR
       errors: [(error as Error).message || "Failed to run ephemeral job"],
       success: false
     };
+  }
+};
+
+/**
+ * Securely fetches logs from the stealth service
+ * In a real implementation, this would fetch logs from the Docker container
+ * 
+ * @returns Promise resolving to log entries
+ */
+export const getStealthServiceLogs = async (): Promise<string[]> => {
+  try {
+    // In a real implementation with Docker, this would execute:
+    // const { exec } = require('child_process');
+    // exec('docker-compose logs --tail=100 dark-web-ingestion', (error, stdout) => {...})
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve([
+          "2023-05-09 13:45:22 - dark_web_ingestion - INFO - Initializing with ultimate stealth mode",
+          "2023-05-09 13:45:23 - stealth_net - INFO - Using TLS profile: firefox_104",
+          "2023-05-09 13:45:23 - dark_web_ingestion - INFO - Using existing collection 'samgpt'",
+          "2023-05-09 13:45:25 - dark_web_ingestion - INFO - Loading sentence transformer model: all-MiniLM-L6-v2",
+          "2023-05-09 13:45:28 - stealth_net - INFO - Stealth session initialized with 3 Tor hops",
+          "2023-05-09 13:45:30 - stealth_net - INFO - Making GET request through Tor (3 hops)",
+          "2023-05-09 13:45:32 - stealth_net - INFO - Tor circuit successfully rotated",
+          "2023-05-09 13:46:02 - dark_web_ingestion - INFO - Created 12 chunks from URL",
+          "2023-05-09 13:46:05 - dark_web_ingestion - INFO - Successfully ingested URL with 12 chunks"
+        ]);
+      }, 500);
+    });
+  } catch (error) {
+    console.error("Error fetching stealth logs:", error);
+    return ["Error fetching logs: " + (error as Error).message];
   }
 };

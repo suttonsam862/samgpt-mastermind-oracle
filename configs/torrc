@@ -1,0 +1,57 @@
+
+# Torrc configuration with multiple circuits, bridges, and pluggable transports
+
+# Basic Tor configuration
+DataDirectory /var/lib/tor
+Log notice file /var/log/tor/notices.log
+
+# Primary circuit
+SOCKSPort 9050
+ControlPort 9051
+# Use password authentication for the control port
+# Generate with: tor --hash-password "your_password_here"
+HashedControlPassword 16:01234567890ABCDEF01234567890ABCDEF01234567890ABCDEF01234567890A
+
+# Secondary circuit
+SOCKSPort 9051
+ControlPort 9052
+HashedControlPassword 16:01234567890ABCDEF01234567890ABCDEF01234567890ABCDEF01234567890A
+
+# Third circuit
+SOCKSPort 9052
+ControlPort 9053
+HashedControlPassword 16:01234567890ABCDEF01234567890ABCDEF01234567890ABCDEF01234567890A
+
+# Use different entry nodes for different circuits
+StrictNodes 1
+EntryNodes {us},{gb},{fr} StrictExitNodes 0
+ExitNodes {se},{de},{nl}
+
+# Configure a DNSPort for DNS resolution through Tor
+DNSPort 5353
+AutomapHostsOnResolve 1
+
+# Pluggable transports configuration
+UseBridges 1
+ClientTransportPlugin obfs4 exec /usr/bin/obfs4proxy
+ClientTransportPlugin meek exec /usr/bin/meek-client
+
+# obfs4 bridge example (replace with real bridges from https://bridges.torproject.org/)
+Bridge obfs4 X.X.X.X:XXXX FINGERPRINT cert=XXXX iat-mode=0
+
+# meek bridge example
+Bridge meek 0.0.0.1:1 url=https://meek-reflect.appspot.com/ front=www.google.com
+
+# Enforce entry node rotation
+NewCircuitPeriod 300
+MaxCircuitDirtiness 600
+
+# Protect against certain attacks
+ConnectionPadding 1
+ReducedConnectionPadding 0
+CircuitPadding 1
+ReducedCircuitPadding 0
+
+# Misc security settings
+SafeSocks 1
+NoExec 1

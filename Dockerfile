@@ -32,6 +32,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CHROMA_DB_PATH=/app/data/chroma_db \
     TOR_SOCKS_HOST=tor \
     TOR_SOCKS_PORT=9050 \
+    I2P_HTTP_PROXY=i2p:4444 \
     LOG_LEVEL=INFO \
     LOG_FILE=/app/logs/dark_web_ingestion.log \
     COLLECTION_NAME=samgpt
@@ -43,9 +44,10 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Create directory structure - note Distroless doesn't have shell so we do this in builder
 WORKDIR /app
 
-# Copy application code and boot verification script
+# Copy application code and verification scripts
 COPY src/utils/dark_web_ingestion.py /app/src/utils/
 COPY src/utils/verify_integrity.py /app/src/utils/
+COPY src/utils/stealth_net.py /app/src/utils/
 COPY requirements.txt /app/
 COPY attestation_key.pub /app/
 
@@ -56,6 +58,6 @@ USER 65532:65532
 HEALTHCHECK --interval=5m --timeout=30s \
   CMD ["python", "/app/src/utils/verify_integrity.py", "--check"]
 
-# Run as non-root user
+# Run as non-root user with stealth networking by default
 ENTRYPOINT ["python", "/app/src/utils/dark_web_ingestion.py"]
 CMD ["--help"]
