@@ -3,6 +3,7 @@
  * Utility functions for chat functionality
  */
 import { processWithHaystack } from './haystackUtils';
+import { generateMistralResponse, enhanceMistralWithHaystack, analyzePromptComplexity } from './mistralUtils';
 
 /**
  * Generates a response to a user prompt, with optional Haystack integration
@@ -19,7 +20,48 @@ export const generateResponse = async (
     return processWithHaystack(prompt, model, temp, useWebSearch, useDarkWeb);
   }
   
-  // For other models, use the standard response generation
+  // For standard Mistral 7B model
+  if (model === 'mistral-7b') {
+    const mistralResponse = await generateMistralResponse(prompt, temp);
+    return {
+      response: mistralResponse.content,
+      documents: []
+    };
+  }
+  
+  // For web research model
+  if (model === 'serpapi-enhanced') {
+    const complexity = analyzePromptComplexity(prompt);
+    const useHaystack = complexity > 0.6 || useWebSearch;
+    
+    if (useHaystack && useWebSearch) {
+      // Use web search with haystack
+      return processWithHaystack(prompt, model, temp, true, false);
+    } else {
+      // Use standard Mistral response
+      const mistralResponse = await generateMistralResponse(prompt, temp * 1.2);
+      return {
+        response: `[Web Search] ${mistralResponse.content}`,
+        documents: []
+      };
+    }
+  }
+  
+  // For dark web model
+  if (model === 'tor-enhanced') {
+    if (useDarkWeb) {
+      // Use dark web search with haystack
+      return processWithHaystack(prompt, model, temp, useWebSearch, true);
+    } else {
+      const mistralResponse = await generateMistralResponse(prompt, temp * 1.5);
+      return {
+        response: `[Deep Web Analysis] ${mistralResponse.content}`,
+        documents: []
+      };
+    }
+  }
+  
+  // Fallback for unknown models
   const responses = [
     `I've analyzed your request "${prompt}" using ${model} (temperature: ${temp}). ${useWebSearch ? "Web search was used" : "No web search was performed"}. ${useDarkWeb ? "Dark web sources were consulted" : ""}`,
     "Based on Mistral 7B's parameters, I've determined that your query requires a nuanced approach. The most efficient solution would be to implement a recursive algorithm with logarithmic time complexity.",
