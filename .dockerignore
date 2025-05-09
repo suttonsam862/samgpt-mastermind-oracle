@@ -1,0 +1,75 @@
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+# Build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# Docker specific
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Data and local storage
+data/
+*.db
+chroma_db/
+
+# IDE specific files
+.idea/
+.vscode/
+*.sublime-*
+.project
+.pydevproject
+
+# Documentation
+docs/
+*.md
+LICENSE
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+
+# Environments
+.env
+.venv

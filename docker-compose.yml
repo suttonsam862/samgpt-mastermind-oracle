@@ -1,0 +1,67 @@
+
+version: '3.8'
+
+services:
+  tor:
+    image: dperson/tor:latest
+    container_name: tor
+    restart: unless-stopped
+    networks:
+      - tor_network
+    # Expose Tor SOCKS proxy port internally only
+    expose:
+      - "9050"
+    # Configure Tor with healthcheck
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9050"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      
+  dark-web-ingestion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: darkweb-ingestion:latest
+    container_name: darkweb-ingestion
+    user: appuser
+    depends_on:
+      tor:
+        condition: service_healthy
+    networks:
+      - tor_network
+    volumes:
+      # Mount config and data directories
+      - ./data:/app/data:rw
+      - ./logs:/app/logs:rw
+      - ./src/utils:/app/src/utils:ro
+      # Mount temporary writable directory (when using read-only filesystem)
+      - type: tmpfs
+        target: /app/tmp
+        tmpfs:
+          size: 100M
+    env_file:
+      - .env
+    # Make filesystem read-only except for specific mounts
+    read_only: true
+    # Configure the container to run the ingestion service
+    # Pass any URL file as an argument
+    command: ["--file", "/app/data/urls.json"]
+    # Limit resources to prevent DoS
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+    # Additional security measures
+    security_opt:
+      - no-new-privileges:true
+    # Drop all capabilities and only add back what's needed
+    cap_drop:
+      - ALL
+
+networks:
+  tor_network:
+    driver: bridge
+    # Internal network with no direct outside access
+    internal: true

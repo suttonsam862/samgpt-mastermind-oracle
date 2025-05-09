@@ -16,6 +16,45 @@ import time
 import logging
 from typing import List, Dict, Any, Optional
 import hashlib
+import re
+from functools import wraps
+import traceback
+import requests
+import html
+import sys
+from urllib.parse import urlparse
+
+# Environment variable configuration with defaults
+TOR_SOCKS_HOST = os.getenv("TOR_SOCKS_HOST", "localhost")
+TOR_SOCKS_PORT = int(os.getenv("TOR_SOCKS_PORT", "9050"))
+CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db"))
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
+OVERLAP = int(os.getenv("OVERLAP", "200"))
+MODEL_NAME = os.getenv("MODEL_NAME", "all-MiniLM-L6-v2")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME", "samgpt")
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+
+# Configure logging based on environment
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL.upper()),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.getenv("LOG_FILE", "dark_web_ingestion.log")),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger("dark_web_ingestion")
+
+# Make sure we don't log sensitive data
+class SensitiveFilter(logging.Filter):
+    def filter(self, record):
+        if record.getMessage().find('.onion') != -1:
+            # Redact full onion URLs in logs
+            record.msg = re.sub(r'([a-z2-7]{16,56}\.onion)', '[REDACTED_ONION]', record.msg)
+        return True
+
+logger.addFilter(SensitiveFilter())
 
 # Try to import required packages
 try:
@@ -23,41 +62,75 @@ try:
     from bs4 import BeautifulSoup
     import chromadb
     from sentence_transformers import SentenceTransformer
-except ImportError:
-    print("Required packages not found. Installing dependencies...")
+except ImportError as e:
+    logger.error(f"Required package not found: {str(e)}")
+    logger.info("Installing dependencies...")
     import subprocess
-    subprocess.check_call([
-        "pip", "install", 
-        "torpy", "beautifulsoup4", "chromadb", "sentence-transformers"
-    ])
-    # Now import after installation
-    from torpy.http.requests import TorRequests
-    from bs4 import BeautifulSoup
-    import chromadb
-    from sentence_transformers import SentenceTransformer
+    try:
+        subprocess.check_call([
+            "pip", "install", 
+            "torpy>=1.1.6", "beautifulsoup4>=4.12.2", "chromadb>=0.4.18", 
+            "sentence-transformers>=2.2.2", "requests>=2.31.0"
+        ])
+        # Now import after installation
+        from torpy.http.requests import TorRequests
+        from bs4 import BeautifulSoup
+        import chromadb
+        from sentence_transformers import SentenceTransformer
+    except Exception as install_error:
+        logger.critical(f"Failed to install dependencies: {str(install_error)}")
+        sys.exit(1)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("dark_web_ingestion")
+def alert_on_anomaly(description, details=None):
+    """Send alerts for anomalies through webhook or logging"""
+    logger.warning(f"ANOMALY: {description}")
+    
+    if details:
+        logger.warning(f"Details: {json.dumps(details)}")
+        
+    if WEBHOOK_URL:
+        try:
+            requests.post(
+                WEBHOOK_URL, 
+                json={"event": "anomaly", "description": description, "details": details},
+                timeout=5
+            )
+        except Exception as e:
+            logger.error(f"Failed to send webhook alert: {str(e)}")
 
-# Constants
-CHUNK_SIZE = 1000  # Target token size for chunks
-OVERLAP = 200      # Overlap between chunks
-MODEL_NAME = "all-MiniLM-L6-v2"
-COLLECTION_NAME = "samgpt"
-PERSISTENCE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db")
+def anomaly_detector(func):
+    """Decorator to catch and report anomalies in functions"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        try:
+            result = func(*args, **kwargs)
+            execution_time = time.time() - start_time
+            
+            # Check for anomalies in execution time
+            if execution_time > 300:  # More than 5 minutes
+                alert_on_anomaly(
+                    f"Function {func.__name__} took too long to execute",
+                    {"execution_time": execution_time, "function": func.__name__}
+                )
+                
+            return result
+        except Exception as e:
+            alert_on_anomaly(
+                f"Exception in {func.__name__}: {str(e)}",
+                {"traceback": traceback.format_exc(), "function": func.__name__}
+            )
+            raise
+    return wrapper
 
 class DarkWebIngestion:
     def __init__(self):
         """Initialize the ingestion module with Chroma DB and sentence transformer."""
         # Ensure persistence directory exists
-        os.makedirs(PERSISTENCE_DIR, exist_ok=True)
+        os.makedirs(CHROMA_DB_PATH, exist_ok=True)
         
-        logger.info(f"Initializing Chroma client with persistence at {PERSISTENCE_DIR}")
-        self.chroma_client = chromadb.PersistentClient(path=PERSISTENCE_DIR)
+        logger.info(f"Initializing Chroma client with persistence at {CHROMA_DB_PATH}")
+        self.chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
         
         # Get or create the collection
         try:
@@ -96,6 +169,33 @@ class DarkWebIngestion:
                 
         return chunks
     
+    def sanitize_html(self, html_content: str) -> str:
+        """Sanitize HTML content to prevent XSS and injection attacks"""
+        # Use BeautifulSoup to parse and clean HTML
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Remove potentially dangerous elements
+        for tag in soup.find_all(['script', 'iframe', 'object', 'embed', 'form']):
+            tag.decompose()
+            
+        # Remove event handlers from all remaining tags
+        for tag in soup.find_all(True):
+            for attr in list(tag.attrs):
+                if attr.startswith('on'):
+                    del tag[attr]
+                # Remove javascript: URLs
+                elif attr == 'href' or attr == 'src':
+                    if tag[attr].startswith('javascript:'):
+                        del tag[attr]
+                        
+        # Get the sanitized text
+        sanitized_text = soup.get_text(separator=' ', strip=True)
+        
+        # Additional HTML entity decoding
+        sanitized_text = html.unescape(sanitized_text)
+        
+        return sanitized_text
+    
     def url_to_id(self, url: str) -> str:
         """Create a deterministic ID from a URL."""
         return hashlib.sha256(url.encode()).hexdigest()
@@ -110,6 +210,33 @@ class DarkWebIngestion:
         )
         return len(result["ids"]) > 0
     
+    def validate_onion_url(self, url: str) -> bool:
+        """Validate if a URL is a proper .onion address"""
+        try:
+            parsed = urlparse(url)
+            # Check if scheme is present
+            if not parsed.scheme or not parsed.netloc:
+                return False
+                
+            # Check if it's a .onion domain
+            if not parsed.netloc.endswith('.onion'):
+                return False
+                
+            # Check for valid onion address format (v2 or v3)
+            hostname = parsed.netloc.split('.')[0]
+            # V3 onion addresses are 56 chars, V2 are 16 chars
+            if len(hostname) not in (16, 56):
+                return False
+                
+            # Check for valid base32 chars (a-z2-7)
+            if not re.match(r'^[a-z2-7]+$', hostname):
+                return False
+                
+            return True
+        except Exception:
+            return False
+    
+    @anomaly_detector
     def ingest_onion(self, url_list: List[str], timeout: int = 60) -> Dict[str, Any]:
         """
         Fetch content from .onion URLs through Tor, process text, and store in Chroma.
@@ -130,11 +257,12 @@ class DarkWebIngestion:
         }
         
         # Validate URLs
-        valid_urls = [url for url in url_list if url.endswith(".onion")]
+        valid_urls = [url for url in url_list if self.validate_onion_url(url)]
         if len(valid_urls) < len(url_list):
             non_onion = len(url_list) - len(valid_urls)
-            logger.warning(f"Skipping {non_onion} non-.onion URLs")
+            logger.warning(f"Skipping {non_onion} invalid URLs")
             stats["urls_skipped"] += non_onion
+            stats["errors"].append(f"Skipped {non_onion} invalid URLs")
         
         if not valid_urls:
             logger.error("No valid .onion URLs to process")
@@ -144,46 +272,67 @@ class DarkWebIngestion:
         # Initialize Tor
         logger.info(f"Initializing Tor connection for {len(valid_urls)} URLs")
         try:
-            with TorRequests() as tor_requests:
+            with TorRequests(socks_port=TOR_SOCKS_PORT, socks_host=TOR_SOCKS_HOST) as tor_requests:
                 # Process each URL
                 for url in valid_urls:
                     if self.is_already_ingested(url):
-                        logger.info(f"URL already ingested, skipping: {url}")
+                        logger.info("URL already ingested, skipping (URL redacted)")
                         stats["urls_skipped"] += 1
                         continue
                         
                     try:
-                        logger.info(f"Fetching: {url}")
+                        logger.info("Fetching URL (redacted for security)")
                         # Create a Tor circuit and session
                         with tor_requests.get_session() as session:
-                            response = session.get(url, timeout=timeout)
+                            # Set a user-agent to avoid fingerprinting
+                            headers = {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0'
+                            }
+                            
+                            response = session.get(url, timeout=timeout, headers=headers)
                             
                             if response.status_code != 200:
-                                logger.warning(f"Failed to fetch {url}: Status {response.status_code}")
-                                stats["errors"].append(f"Status {response.status_code} for {url}")
+                                logger.warning(f"Failed to fetch URL: Status {response.status_code}")
+                                stats["errors"].append(f"Status {response.status_code} for URL")
                                 continue
                             
+                            content_length = len(response.text)
+                            
+                            # Check for anomalously large responses
+                            if content_length > 5000000:  # > 5MB
+                                alert_on_anomaly(
+                                    "Oversized response detected",
+                                    {"size_bytes": content_length}
+                                )
+                            
+                            # Sanitize HTML before parsing
+                            sanitized_html = self.sanitize_html(response.text)
+                            
                             # Parse HTML with BeautifulSoup
-                            soup = BeautifulSoup(response.text, 'html.parser')
+                            soup = BeautifulSoup(sanitized_html, 'html.parser')
                             
                             # Extract title if available
                             title = soup.title.string if soup.title else "Untitled"
-                            
-                            # Remove script and style elements
-                            for script in soup(["script", "style"]):
-                                script.extract()
+                            title = title[:200]  # Limit title length
                                 
                             # Get text content
                             text = soup.get_text(separator=' ', strip=True)
                             
-                            if not text:
-                                logger.warning(f"No text content found at {url}")
-                                stats["errors"].append(f"Empty content for {url}")
+                            if not text or len(text) < 50:
+                                logger.warning("No meaningful text content found at URL")
+                                stats["errors"].append("Empty or minimal content")
                                 continue
                             
                             # Generate chunks
                             chunks = self.chunk_text(text)
-                            logger.info(f"Created {len(chunks)} chunks from {url}")
+                            logger.info(f"Created {len(chunks)} chunks from URL")
+                            
+                            # Check for anomalously small chunking result
+                            if len(text) > 10000 and len(chunks) < 2:
+                                alert_on_anomaly(
+                                    "Chunking anomaly detected",
+                                    {"text_length": len(text), "chunk_count": len(chunks)}
+                                )
                             
                             # Generate embeddings for all chunks at once (more efficient)
                             embeddings = self.model.encode(chunks)
@@ -199,8 +348,7 @@ class DarkWebIngestion:
                             for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                                 chunk_id = f"{url_hash}_{idx}"
                                 metadata = {
-                                    "source_url": url,
-                                    "source_url_hash": url_hash,
+                                    "source_url_hash": url_hash,  # Store hash instead of actual URL
                                     "title": title,
                                     "chunk_index": idx,
                                     "total_chunks": len(chunks),
@@ -221,11 +369,11 @@ class DarkWebIngestion:
                             
                             stats["chunks_ingested"] += len(chunks)
                             stats["urls_processed"] += 1
-                            logger.info(f"Successfully ingested {url} with {len(chunks)} chunks")
+                            logger.info(f"Successfully ingested URL with {len(chunks)} chunks")
                     
                     except Exception as e:
-                        logger.error(f"Error processing {url}: {str(e)}")
-                        stats["errors"].append(f"Error for {url}: {str(e)}")
+                        logger.error(f"Error processing URL: {str(e)}")
+                        stats["errors"].append(f"Error: {str(e)}")
         
         except Exception as e:
             logger.error(f"Error initializing Tor: {str(e)}")
@@ -256,6 +404,7 @@ def load_url_list(file_path: str) -> List[str]:
         # Fall back to text file parsing (one URL per line)
         return [line.strip() for line in content.split('\n') if line.strip()]
 
+@anomaly_detector
 def main(url_file: str = None, urls: List[str] = None):
     """
     Entry point for dark web ingestion.
@@ -269,7 +418,7 @@ def main(url_file: str = None, urls: List[str] = None):
     # Get URLs from file if specified
     if url_file:
         url_list = load_url_list(url_file)
-        logger.info(f"Loaded {len(url_list)} URLs from {url_file}")
+        logger.info(f"Loaded {len(url_list)} URLs from file")
     
     # Use provided URL list if given
     if urls:
