@@ -1,5 +1,5 @@
 
-# Use Python 3.10 slim as base image for minimal footprint
+# Start with a builder image for dependency installation
 FROM python:3.10-slim AS builder
 
 # Set environment variables
@@ -22,14 +22,13 @@ RUN groupadd -g 1000 appuser && \
 COPY requirements.txt /tmp/
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Multi-stage build for smaller final image
-FROM python:3.10-slim
+# Multi-stage build using Google's Distroless Python image for minimal attack surface
+# This image is signed and can be verified with Docker Content Trust
+FROM gcr.io/distroless/python3:nonroot
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=off \
-    PIP_DISABLE_PIP_VERSION_CHECK=on \
     CHROMA_DB_PATH=/app/data/chroma_db \
     TOR_SOCKS_HOST=tor \
     TOR_SOCKS_PORT=9050 \
@@ -37,33 +36,25 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LOG_FILE=/app/logs/dark_web_ingestion.log \
     COLLECTION_NAME=samgpt
 
-# Create a non-root user
-RUN groupadd -g 1000 appuser && \
-    useradd -u 1000 -g appuser -s /bin/bash -m appuser
-
-# Create directory structure
-RUN mkdir -p /app/src/utils /app/data /app/logs && \
-    chown -R appuser:appuser /app
-
-# Copy installed packages from builder stage
+# Copy Python packages from builder
 COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Set the working directory
+# Create directory structure - note Distroless doesn't have shell so we do this in builder
 WORKDIR /app
 
-# Copy application code
+# Copy application code and boot verification script
 COPY src/utils/dark_web_ingestion.py /app/src/utils/
+COPY src/utils/verify_integrity.py /app/src/utils/
 COPY requirements.txt /app/
+COPY attestation_key.pub /app/
 
-# Set ownership
-RUN chown -R appuser:appuser /app
+# Set runtime user - Distroless nonroot image runs as uid 65532
+USER 65532:65532
 
-# Create directories that need write permissions in read-only mode
-RUN mkdir -p /app/tmp && chown -R appuser:appuser /app/tmp
-
-# Switch to non-root user
-USER appuser
+# Healthcheck to verify integrity - runs the verification script
+HEALTHCHECK --interval=5m --timeout=30s \
+  CMD ["python", "/app/src/utils/verify_integrity.py", "--check"]
 
 # Run as non-root user
 ENTRYPOINT ["python", "/app/src/utils/dark_web_ingestion.py"]

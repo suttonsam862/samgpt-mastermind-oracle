@@ -1,0 +1,58 @@
+
+# Falco rules for Dark Web Ingestion service
+
+# Prevent shell executions
+- rule: Shell in Dark Web Ingestion Container
+  desc: Detect any attempt to spawn a shell in the ingestion container
+  condition: evt.type=execve and container.name=darkweb-ingestion and proc.name in (sh, bash, dash, ash, ksh, zsh, csh)
+  output: "Shell execution detected in ingestion container (user=%user.name command=%proc.cmdline)"
+  priority: CRITICAL
+  tags: [process, shell, mitre_execution]
+  
+# Detect unauthorized network connections
+- rule: Unauthorized Network Connection
+  desc: Detect network connections to anything other than Tor SOCKS proxy
+  condition: evt.type=connect and container.name=darkweb-ingestion and not (fd.name="172.28.0.0/24" and fd.lport=9050)
+  output: "Unauthorized network connection in ingestion container (process=%proc.name connection=%fd.name)"
+  priority: WARNING
+  tags: [network, mitre_command_and_control]
+
+# Detect writes to unauthorized directories
+- rule: Write to Unauthorized Location
+  desc: Detect writes to unauthorized directories in ingestion container
+  condition: >
+    evt.type=open and evt.dir=< and container.name=darkweb-ingestion and 
+    not (fd.name startswith "/app/data/chroma_db" or fd.name startswith "/app/logs" or fd.name startswith "/app/tmp")
+  output: "Unauthorized file write in ingestion container (file=%fd.name user=%user.name process=%proc.name)"
+  priority: CRITICAL
+  tags: [filesystem, mitre_defense_evasion]
+  
+# Detect execution of unauthorized binaries
+- rule: Execute Unauthorized Binary
+  desc: Detect execution of unauthorized binaries in ingestion container
+  condition: >
+    evt.type=execve and container.name=darkweb-ingestion and 
+    not (proc.name in (python, python3, python3.10) or proc.cmdline startswith "python")
+  output: "Unauthorized binary execution in ingestion container (command=%proc.cmdline user=%user.name)"
+  priority: CRITICAL
+  tags: [process, mitre_execution]
+
+# Detect modification of Python code at runtime
+- rule: Python Code Modification
+  desc: Detect modification of Python code files during runtime
+  condition: >
+    evt.type=open and evt.dir=< and container.name=darkweb-ingestion and 
+    fd.name endswith ".py" and fd.directory="/app/src"
+  output: "Python code modification attempt in ingestion container (file=%fd.name process=%proc.name)"
+  priority: CRITICAL
+  tags: [filesystem, mitre_defense_evasion]
+
+# Detect unusual file access patterns
+- rule: Unusual File Access Pattern
+  desc: Detect access to critical system files
+  condition: >
+    evt.type=open and container.name=darkweb-ingestion and 
+    fd.name in (/etc/shadow, /etc/passwd, /etc/ssh, /etc/ssl, /root/.ssh)
+  output: "Critical file access attempt in ingestion container (file=%fd.name user=%user.name process=%proc.name)"
+  priority: CRITICAL
+  tags: [filesystem, mitre_discovery]

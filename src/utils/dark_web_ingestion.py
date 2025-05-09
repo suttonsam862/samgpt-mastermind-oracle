@@ -8,6 +8,12 @@ This module implements an offline dark-web ingestion service that:
 3. Processes and chunks the text
 4. Embeds the chunks using SentenceTransformer
 5. Stores the embeddings in a local Chroma database
+
+Enhanced with security features:
+1. HTML sanitization to prevent XSS and injection attacks
+2. Vault integration for secrets management
+3. Structured logging with sensitive data redaction
+4. Anomaly detection and alerting
 """
 
 import os
@@ -24,16 +30,21 @@ import html
 import sys
 from urllib.parse import urlparse
 
-# Environment variable configuration with defaults
-TOR_SOCKS_HOST = os.getenv("TOR_SOCKS_HOST", "localhost")
-TOR_SOCKS_PORT = int(os.getenv("TOR_SOCKS_PORT", "9050"))
-CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db"))
+# Import the Vault integration
+from vault_integration import get_tor_credentials, get_database_config, get_webhook_url
+
+# Environment variable configuration with defaults from Vault or environment
+tor_creds = get_tor_credentials()
+db_config = get_database_config()
+TOR_SOCKS_HOST = tor_creds["socks_host"]
+TOR_SOCKS_PORT = int(tor_creds["socks_port"])
+CHROMA_DB_PATH = db_config["path"]
+COLLECTION_NAME = db_config["collection"]
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
 OVERLAP = int(os.getenv("OVERLAP", "200"))
 MODEL_NAME = os.getenv("MODEL_NAME", "all-MiniLM-L6-v2")
-COLLECTION_NAME = os.getenv("COLLECTION_NAME", "samgpt")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+WEBHOOK_URL = get_webhook_url()
 
 # Configure logging based on environment
 logging.basicConfig(
@@ -269,7 +280,7 @@ class DarkWebIngestion:
             stats["errors"].append("No valid .onion URLs provided")
             return stats
         
-        # Initialize Tor
+        # Initialize Tor using credentials from Vault
         logger.info(f"Initializing Tor connection for {len(valid_urls)} URLs")
         try:
             with TorRequests(socks_port=TOR_SOCKS_PORT, socks_host=TOR_SOCKS_HOST) as tor_requests:

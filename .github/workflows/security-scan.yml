@@ -1,0 +1,58 @@
+
+name: Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly scan on Sundays
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pip-audit safety bandit
+        
+    - name: Run pip-audit
+      run: |
+        pip-audit --requirement requirements.txt --format json > security-audit-pip.json
+        
+    - name: Run safety check
+      run: |
+        safety check --full-report --file requirements.txt
+        
+    - name: Run Bandit security scan
+      run: |
+        bandit -r src/ -f json -o security-audit-bandit.json
+        
+    - name: Upload security reports
+      uses: actions/upload-artifact@v2
+      with:
+        name: security-reports
+        path: |
+          security-audit-*.json
+          security-audit-*.txt
+          
+    - name: Check Docker build
+      run: |
+        docker build -t darkweb-ingestion-test:latest .
+        docker run --rm darkweb-ingestion-test:latest --help
+        
+    - name: Run scan-secure script
+      run: |
+        chmod +x scan-secure.sh
+        ./scan-secure.sh

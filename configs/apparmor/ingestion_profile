@@ -1,0 +1,52 @@
+
+#include <tunables/global>
+
+profile ingestion_profile flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/python>
+
+  # Restrict network access to only Tor SOCKS proxy
+  network inet tcp,
+  network inet udp,
+  
+  # Deny all raw sockets
+  deny network raw,
+  # Deny all packet sockets
+  deny network packet,
+  
+  # Only allow network connections to Tor
+  deny network inet tcp, # Deny all outbound by default
+  allow network inet tcp connect to tor:9050, # Allow only Tor SOCKS proxy
+
+  # Restrict filesystem access
+  deny /** rwx,  # Deny everything by default
+  
+  # Allow read-only access to application code and libraries
+  /app/src/utils/** r,
+  /usr/lib/python3.10/** rm,
+  /usr/local/lib/python3.10/site-packages/** rm,
+  
+  # Allow read-write access to specific directories
+  /app/data/ r,
+  /app/data/chroma_db/ rw,
+  /app/data/chroma_db/** rwk,
+  /app/logs/ rw,
+  /app/logs/** rw,
+  /app/tmp/ rw,
+  /app/tmp/** rw,
+  
+  # Allow Python execution
+  /usr/bin/python3.10 ix,
+  
+  # Allow process information for own processes only
+  @{PROC}/@{pid}/status r,
+  @{PROC}/@{pid}/cgroup r,
+  @{PROC}/@{pid}/cmdline r,
+  deny @{PROC}/[0-9]*/stat r,
+  
+  # Allow reading limited syscall information
+  @{PROC}/sys/kernel/random/uuid r,
+  
+  # Block ptrace completely to prevent process inspection
+  deny ptrace,
+}

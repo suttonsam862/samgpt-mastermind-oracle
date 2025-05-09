@@ -1,0 +1,36 @@
+
+# Bandit security scanner configuration
+
+# Exclude specific directories from scanning
+exclude_dirs:
+  - "venv"
+  - ".venv"
+  - "__pycache__"
+  - ".pytest_cache"
+
+# Set severity levels
+# By default, Medium and High severity issues will cause a non-zero exit
+skips: []
+
+# Set confidence levels
+# medium or high
+confidence_level: medium
+
+# Output format options: json, yaml, csv, txt, html, custom, xml
+output_format: txt
+
+# Security level options: LOW, MEDIUM, HIGH
+aggregate: LOW
+
+# Tests to skip
+skips:
+  - B104  # Allows binding to all interfaces (we handle this with Docker networking)
+  - B608  # Possible SQL injection (we handle this with parameterized queries)
+
+# Tests to run
+tests:
+  - B201  # Flask app run with debug=True
+  - B301  # Pickle usage
+  - B403  # Import XML processing modules
+  - B506  # Use of yaml.load
+  - B602  # subprocess call with shell=True

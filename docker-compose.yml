@@ -17,29 +17,73 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    # Apply security controls
+    security_opt:
+      - apparmor:tor_profile
+      - seccomp:/app/configs/seccomp_tor.json
+      - no-new-privileges:true
+    # Manage capabilities for Tor
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE  # Needed for binding to ports
+    read_only: true
+    tmpfs:
+      - /tmp:size=50M,noexec,nosuid,nodev
+      
+  vault:
+    image: hashicorp/vault:latest
+    container_name: vault
+    restart: unless-stopped
+    networks:
+      - services_network
+    cap_drop:
+      - ALL
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_ROOT_TOKEN:-root}
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    volumes:
+      - ./configs/vault:/vault/config
+      - vault-data:/vault/file
+    command: server -config=/vault/config/vault.hcl
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
       
   dark-web-ingestion:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: darkweb-ingestion:latest
     container_name: darkweb-ingestion
-    user: appuser
+    user: 65532:65532  # nonroot user from distroless image
     depends_on:
       tor:
         condition: service_healthy
+      vault:
+        condition: service_healthy
     networks:
       - tor_network
+      - services_network
     volumes:
       # Mount config and data directories
-      - ./data:/app/data:rw
-      - ./logs:/app/logs:rw
-      - ./src/utils:/app/src/utils:ro
+      - ./data:/app/data:ro,noexec
+      - ./logs:/app/logs
+      - ./src/utils:/app/src/utils:ro,noexec
+      # AppArmor and SELinux policies 
+      - ./configs/apparmor:/etc/apparmor.d:ro
+      - ./configs/falco:/etc/falco:ro
       # Mount temporary writable directory (when using read-only filesystem)
       - type: tmpfs
         target: /app/tmp
         tmpfs:
           size: 100M
+          noexec: true
+          nosuid: true
+          nodev: true
     env_file:
       - .env
     # Make filesystem read-only except for specific mounts
@@ -56,12 +100,37 @@ services:
     # Additional security measures
     security_opt:
       - no-new-privileges:true
+      - apparmor:ingestion_profile
+      - seccomp:/app/configs/seccomp_ingestion.json
     # Drop all capabilities and only add back what's needed
     cap_drop:
       - ALL
+    # Network isolation
+    dns:
+      - 127.0.0.1  # Prevent DNS leaks by forcing local resolution only
+    sysctls:
+      - net.ipv4.ip_forward=0
+      - net.ipv6.conf.all.forwarding=0
 
 networks:
   tor_network:
     driver: bridge
-    # Internal network with no direct outside access
-    internal: true
+    internal: true  # No direct outside access
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+    driver_opts:
+      com.docker.network.bridge.name: br-tor
+      
+  services_network:
+    driver: bridge
+    internal: false  # Needed for vault access
+    ipam:
+      config:
+        - subnet: 172.29.0.0/24
+    driver_opts:
+      com.docker.network.bridge.name: br-services
+
+volumes:
+  vault-data:
+    driver: local
