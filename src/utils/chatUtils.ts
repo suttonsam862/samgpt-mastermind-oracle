@@ -1,3 +1,4 @@
+
 /**
  * Utility functions for chat functionality
  */
@@ -20,127 +21,42 @@ export const generateResponse = async (
   temp: number,
   useWebSearch: boolean,
   useDarkWeb: boolean,
-  useRAG: boolean = false
+  forceDeepResearch: boolean = false
 ): Promise<{response: string, documents?: any[]}> => {
-  console.log(`Generating response with model: ${model}, temp: ${temp}, webSearch: ${useWebSearch}, darkWeb: ${useDarkWeb}, RAG: ${useRAG}`);
+  console.log(`Generating response with model: ${model}, temp: ${temp}, webSearch: ${useWebSearch}, darkWeb: ${useDarkWeb}, deepResearch: ${forceDeepResearch}`);
   
-  // If using RAG mode
-  if (useRAG) {
-    try {
-      const mistralResponse = await generateMistralResponse(prompt, temp, true);
-      return {
-        response: mistralResponse.content,
-        documents: mistralResponse.metadata?.retrievedDocuments?.map((text: string, index: number) => ({
-          id: `rag-${index}`,
-          content: text,
-          meta: {
-            title: `Retrieved Document ${index + 1}`,
-            source: 'Local Vector Store',
-            date: new Date().toISOString().split('T')[0]
-          }
-        })) || []
-      };
-    } catch (error) {
-      console.error('Error generating RAG response:', error);
-      toast.error(`Failed to generate RAG response: ${error.message}`);
-      return {
-        response: `Error generating response with RAG: ${error.message}. Please try again.`,
-        documents: []
-      };
-    }
-  }
-  
-  // If using Mistral + Haystack model, use the research pipeline
-  if (model === 'mistral-haystack') {
-    return processWithHaystack(prompt, model, temp, useWebSearch, useDarkWeb);
-  }
-  
-  // For standard Mistral 7B model
-  if (model === 'mistral-7b') {
-    try {
-      const mistralResponse = await generateMistralResponse(prompt, temp);
-      
-      // Check if this is a credits error response (based on the metadata)
-      if (mistralResponse.metadata?.model === "Mistral-7B-Credit-Error") {
-        return {
-          response: mistralResponse.content,
-          documents: []
-        };
-      }
-      
-      return {
-        response: mistralResponse.content,
-        documents: []
-      };
-    } catch (error) {
-      console.error('Error generating Mistral response:', error);
-      toast.error(`Failed to generate response: ${error.message}`);
-      return {
-        response: `Error generating response: ${error.message}. Please try again.`,
-        documents: []
-      };
-    }
-  }
-  
-  // For web research model
-  if (model === 'serpapi-enhanced') {
-    const complexity = analyzePromptComplexity(prompt);
-    const useHaystack = complexity > 0.6 || useWebSearch;
+  try {
+    // Always try to use RAG first to enhance the response
+    const { response: ragResponse, documents } = await generateMistralWithRAG(prompt, temp);
     
-    if (useHaystack && useWebSearch) {
-      // Use web search with haystack
-      return processWithHaystack(prompt, model, temp, true, false);
-    } else {
-      // Use standard Mistral response
-      try {
-        const mistralResponse = await generateMistralResponse(prompt, temp * 1.2);
-        return {
-          response: `[Web Search] ${mistralResponse.content}`,
-          documents: []
-        };
-      } catch (error) {
-        console.error('Error generating Web Search response:', error);
-        toast.error(`Failed to generate web search response: ${error.message}`);
-        return {
-          response: `Error generating web search response: ${error.message}. Please try again.`,
-          documents: []
-        };
+    // If deep research is requested or the complexity requires it, use Haystack
+    if (forceDeepResearch || model === 'mistral-haystack') {
+      return processWithHaystack(prompt, model, temp, useWebSearch, useDarkWeb);
+    }
+    
+    // For web research model
+    if (model === 'serpapi-enhanced') {
+      const complexity = analyzePromptComplexity(prompt);
+      
+      if (complexity > 0.6 || useWebSearch) {
+        // Use web search with haystack
+        return processWithHaystack(prompt, model, temp, true, false);
       }
     }
-  }
-  
-  // For dark web model
-  if (model === 'tor-enhanced') {
-    if (useDarkWeb) {
+    
+    // For dark web model
+    if (model === 'tor-enhanced' && useDarkWeb) {
       // Use dark web search with haystack
       return processWithHaystack(prompt, model, temp, useWebSearch, true);
-    } else {
-      try {
-        const mistralResponse = await generateMistralResponse(prompt, temp * 1.5);
-        return {
-          response: `[Deep Web Analysis] ${mistralResponse.content}`,
-          documents: []
-        };
-      } catch (error) {
-        console.error('Error generating Dark Web response:', error);
-        toast.error(`Failed to generate dark web response: ${error.message}`);
-        return {
-          response: `Error generating dark web response: ${error.message}. Please try again.`,
-          documents: []
-        };
-      }
     }
-  }
-  
-  // Fallback for unknown models - unrestricted responses
-  try {
-    const mistralResponse = await generateMistralResponse(prompt, temp);
+    
+    // Use the RAG-enhanced response
     return {
-      response: mistralResponse.content,
-      documents: []
+      response: ragResponse,
+      documents: documents
     };
   } catch (error) {
-    console.error('Error in fallback response:', error);
+    console.error('Error in response generation:', error);
     toast.error(`Failed to generate response: ${error.message}`);
     return {
       response: `Error generating response: ${error.message}. Please try again.`,
@@ -148,6 +64,47 @@ export const generateResponse = async (
     };
   }
 };
+
+/**
+ * Generate a response using Mistral model enhanced with RAG
+ */
+async function generateMistralWithRAG(
+  prompt: string,
+  temp: number
+): Promise<{response: string, documents: any[]}> {
+  try {
+    const mistralResponse = await generateMistralResponse(prompt, temp, true);
+    
+    // Check if this is a credits error response
+    if (mistralResponse.metadata?.model === "Mistral-7B-Credit-Error") {
+      return {
+        response: mistralResponse.content,
+        documents: []
+      };
+    }
+    
+    return {
+      response: mistralResponse.content,
+      documents: mistralResponse.metadata?.retrievedDocuments?.map((text: string, index: number) => ({
+        id: `rag-${index}`,
+        content: text,
+        meta: {
+          title: `Retrieved Document ${index + 1}`,
+          source: 'Local Vector Store',
+          date: new Date().toISOString().split('T')[0]
+        }
+      })) || []
+    };
+  } catch (error) {
+    console.error('Error in RAG response generation:', error);
+    // Fall back to standard generation
+    const mistralResponse = await generateMistralResponse(prompt, temp, false);
+    return {
+      response: mistralResponse.content,
+      documents: []
+    };
+  }
+}
 
 /**
  * Formats source citations from retrieved documents

@@ -33,11 +33,8 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
     handleSubmit 
   } = useChatMessages(chatState, options, executionState);
   
-  // Specialized query operations (deep research, RAG)
-  const { 
-    handleDeepResearch, 
-    handleRAGQuery 
-  } = useSpecializedQueries(
+  // Specialized query operations (deep research)
+  const { handleDeepResearch } = useSpecializedQueries(
     { ...chatState, handleNewChat }, 
     options, 
     executionState
@@ -56,7 +53,6 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
     handleNewChat,
     handleSelectChat,
     handleSubmit,
-    handleDeepResearch,
-    handleRAGQuery
+    handleDeepResearch
   };
 };

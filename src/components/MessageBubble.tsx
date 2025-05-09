@@ -15,7 +15,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.role === 'user';
   const hasDocuments = !isUser && message.documents && message.documents.length > 0;
   const isResearch = message.isResearch;
-  const isRAG = message.isRAG;
   
   const copyToClipboard = () => {
     navigator.clipboard.writeText(message.content);
@@ -35,16 +34,14 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
           isUser 
             ? "bg-samgpt-primary ml-3" 
-            : isRAG 
-              ? "bg-purple-500 mr-3" 
-              : isResearch 
-                ? "bg-amber-500 mr-3" 
-                : "bg-samgpt-secondary mr-3"
+            : isResearch 
+              ? "bg-amber-500 mr-3" 
+              : "bg-samgpt-secondary mr-3"
         )}>
           {isUser ? (
-            isResearch || isRAG ? <BookOpen size={16} /> : <User size={16} />
+            isResearch ? <BookOpen size={16} /> : <User size={16} />
           ) : (
-            isRAG ? <Database size={16} /> : isResearch ? <Book size={16} /> : <Bot size={16} />
+            isResearch ? <Book size={16} /> : <Bot size={16} />
           )}
         </div>
         
@@ -52,11 +49,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           "py-3 px-4 rounded-lg",
           isUser 
             ? "bg-samgpt-primary text-white" 
-            : isRAG
-              ? "bg-purple-50 border border-purple-200 text-purple-900"
-              : isResearch 
-                ? "bg-amber-50 border border-amber-200 text-amber-900" 
-                : "bg-samgpt-lightgray",
+            : isResearch 
+              ? "bg-amber-50 border border-amber-200 text-amber-900" 
+              : "bg-samgpt-lightgray",
           message.isLoading && "relative overflow-hidden"
         )}>
           {message.isLoading ? (
@@ -71,13 +66,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                 <div className="text-xs uppercase tracking-wider font-semibold mb-2 text-amber-700 flex items-center gap-1">
                   <Book size={12} />
                   Research Results
-                </div>
-              )}
-              
-              {isRAG && !isUser && (
-                <div className="text-xs uppercase tracking-wider font-semibold mb-2 text-purple-700 flex items-center gap-1">
-                  <Database size={12} />
-                  RAG Results
                 </div>
               )}
               

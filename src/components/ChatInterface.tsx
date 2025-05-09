@@ -6,7 +6,7 @@ import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 import ChatSidebar from './ChatSidebar';
 import { Button } from '@/components/ui/button';
-import { Book, Database, Search, Database as VectorIcon } from 'lucide-react';
+import { Book, Database, Search, Database as VectorIcon, Menu } from 'lucide-react';
 
 interface ChatInterfaceProps {
   temperature: number;
@@ -25,7 +25,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isResearching, setIsResearching] = useState(false);
-  const [isRAGProcessing, setIsRAGProcessing] = useState(false);
   
   const { 
     messages, 
@@ -37,8 +36,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     handleNewChat, 
     handleSelectChat,
     handleSubmit,
-    handleDeepResearch,
-    handleRAGQuery
+    handleDeepResearch
   } = useChatOperations(temperature, webSearch, darkWeb, modelId);
   
   // Set focus on input when chat changes
@@ -56,14 +54,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setIsResearching(false);
   };
   
-  const onRAGQuery = async () => {
-    if (!input.trim() || isProcessing || isRAGProcessing) return;
-    
-    setIsRAGProcessing(true);
-    await handleRAGQuery();
-    setIsRAGProcessing(false);
-  };
-  
   return (
     <div className="flex flex-col h-full">
       {/* Messages area */}
@@ -73,7 +63,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         <MessageList messages={messages} />
       )}
       
-      {/* Input area with Research and RAG buttons */}
+      {/* Input area with Research button */}
       <div className="flex flex-col">
         <div className="flex justify-center gap-2 mb-2">
           <Button
@@ -81,7 +71,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             size="sm"
             className="gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 px-4 py-2 shadow-sm"
             onClick={onDeepResearch}
-            disabled={!input.trim() || isProcessing || isResearching || isRAGProcessing}
+            disabled={!input.trim() || isProcessing || isResearching}
           >
             {isResearching ? (
               <>
@@ -102,36 +92,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               <>
                 <Book className="h-4 w-4" />
                 <span className="mr-1">Deep Research</span>
-                <span className="text-xs opacity-75">(Enhanced Knowledge Base)</span>
-              </>
-            )}
-          </Button>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200 px-4 py-2 shadow-sm"
-            onClick={onRAGQuery}
-            disabled={!input.trim() || isProcessing || isResearching || isRAGProcessing}
-          >
-            {isRAGProcessing ? (
-              <>
-                <div className="flex items-center gap-2 animate-pulse">
-                  <span className="animate-bounce mr-1">🔍</span>
-                  <span className="relative">
-                    <VectorIcon className="h-4 w-4" />
-                    <span className="absolute top-0 left-0 h-4 w-4 animate-ping opacity-75">
-                      <VectorIcon className="h-4 w-4" />
-                    </span>
-                  </span>
-                  Processing RAG...
-                </div>
-              </>
-            ) : (
-              <>
-                <VectorIcon className="h-4 w-4" />
-                <span className="mr-1">RAG Query</span>
-                <span className="text-xs opacity-75">(Vector Search)</span>
+                <span className="text-xs opacity-75">(Enhanced Knowledge)</span>
               </>
             )}
           </Button>
@@ -140,7 +101,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         <ChatInput
           input={input}
           setInput={setInput}
-          isProcessing={isProcessing || isResearching || isRAGProcessing}
+          isProcessing={isProcessing || isResearching}
           handleSubmit={handleSubmit}
           handleNewChat={handleNewChat}
           temperature={temperature}

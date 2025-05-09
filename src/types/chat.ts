@@ -15,5 +15,4 @@ export interface Message {
   isLoading?: boolean;
   documents?: any[];
   isResearch?: boolean;
-  isRAG?: boolean; // Property for RAG messages
 }

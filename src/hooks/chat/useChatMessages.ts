@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { generateResponse } from '@/utils/chatUtils';
 
 /**
- * Hook for handling standard chat message operations
+ * Hook for managing chat messages and submission
  */
 export const useChatMessages = (
   chatState: {
@@ -31,10 +31,10 @@ export const useChatMessages = (
   const { temperature, webSearch, darkWeb, modelId } = options;
   const { isProcessing, setIsProcessing, input, setInput } = executionState;
 
+  // Create a new chat
   const handleNewChat = useCallback(() => {
-    const newChatId = uuidv4();
     const newChat: Chat = {
-      id: newChatId,
+      id: uuidv4(),
       title: null,
       messages: [],
       createdAt: new Date(),
@@ -42,13 +42,17 @@ export const useChatMessages = (
     };
     
     setChats(prev => [...prev, newChat]);
-    setCurrentChatId(newChatId);
-  }, [setChats, setCurrentChatId]);
+    setCurrentChatId(newChat.id);
+    setInput('');
+  }, [setChats, setCurrentChatId, setInput]);
   
+  // Select an existing chat
   const handleSelectChat = useCallback((chatId: string) => {
     setCurrentChatId(chatId);
-  }, [setCurrentChatId]);
+    setInput('');
+  }, [setCurrentChatId, setInput]);
   
+  // Submit a message and get a response
   const handleSubmit = useCallback(async () => {
     if (!input.trim() || isProcessing) return;
     
@@ -91,16 +95,17 @@ export const useChatMessages = (
     setIsProcessing(true);
     
     try {
-      // Generate response with potential document retrieval
+      // Generate response using RAG by default (forceDeepResearch = false)
       const { response, documents } = await generateResponse(
         input.trim(), 
         modelId, 
         temperature, 
         webSearch, 
-        darkWeb
+        darkWeb, 
+        false
       );
       
-      // Update the assistant message with the response and any retrieved documents
+      // Update the assistant message with the response
       setChats(prev => prev.map(chat => 
         chat.id === chatId
           ? {
@@ -111,7 +116,7 @@ export const useChatMessages = (
                       ...msg, 
                       content: response,
                       isLoading: false,
-                      documents
+                      documents: documents
                     } 
                   : msg
               )
@@ -119,7 +124,7 @@ export const useChatMessages = (
           : chat
       ));
     } catch (error) {
-      console.error("Error generating response:", error);
+      console.error("Error during chat:", error);
       // Handle error case
       setChats(prev => prev.map(chat => 
         chat.id === chatId
@@ -129,7 +134,7 @@ export const useChatMessages = (
                 msg.id === assistantMessage.id 
                   ? {
                       ...msg, 
-                      content: "Sorry, I encountered an error processing your request. Please try again.",
+                      content: "Sorry, I encountered an error while processing your request. Please try again.",
                       isLoading: false
                     } 
                   : msg
