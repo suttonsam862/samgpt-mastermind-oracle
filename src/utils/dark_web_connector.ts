@@ -1,4 +1,3 @@
-
 /**
  * TypeScript connector for the Python dark web ingestion service
  * This module provides an interface to call the Docker-containerized Python script
@@ -281,6 +280,79 @@ export const ingestOnionUrls = async (
 };
 
 /**
+ * Process URLs from a file
+ * In a real implementation, this would read the file and process the URLs
+ * 
+ * @param filename Name of the file containing URLs to process
+ * @param options Stealth options to use
+ * @returns Promise resolving to ingestion statistics
+ */
+export const ingestOnionUrlsFromFile = async (
+  filename: string,
+  options: Partial<StealthOptions> = {}
+): Promise<DarkWebIngestionResult> => {
+  try {
+    // First validate security of the container
+    const securityStatus = await verifyContainerSecurity();
+    
+    if (securityStatus.securityStatus !== 'verified') {
+      toast.error("Security alert: Container integrity not verified", {
+        description: "Cannot process URLs due to security concerns.",
+        duration: 5000,
+      });
+      
+      return {
+        urlsTotal: 0,
+        urlsProcessed: 0,
+        urlsSkipped: 0,
+        chunksIngested: 0,
+        errors: ["Container security check failed"],
+        success: false
+      };
+    }
+    
+    // In a real implementation, this would read and parse the file
+    // For demo purposes, we'll simulate processing with a delay
+    toast.info(`Processing file ${filename} with ultimate stealth...`);
+    
+    // Merge provided options with defaults
+    const stealthOptions: StealthOptions = {
+      ...DEFAULT_STEALTH_OPTIONS,
+      ...options
+    };
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Simulate successful ingestion
+        const urlsExtracted = Math.floor(Math.random() * 10) + 5; // Random number between 5-15
+        
+        toast.success(`Successfully processed ${urlsExtracted} URLs from file`);
+        
+        resolve({
+          urlsTotal: urlsExtracted,
+          urlsProcessed: urlsExtracted,
+          urlsSkipped: 0,
+          chunksIngested: urlsExtracted * 5, // Simulate ~5 chunks per URL
+          errors: [],
+          success: true
+        });
+      }, 3000);
+    });
+  } catch (error) {
+    console.error("Error processing file:", error);
+    
+    return {
+      urlsTotal: 0,
+      urlsProcessed: 0,
+      urlsSkipped: 0,
+      chunksIngested: 0,
+      errors: [(error as Error).message || "Unknown error processing file"],
+      success: false
+    };
+  }
+};
+
+/**
  * Build the Docker command with appropriate stealth options
  * 
  * @param urls List of URLs to process
@@ -356,7 +428,7 @@ export const runEphemeralStealthJob = async (
  * 
  * @returns Promise resolving to log entries
  */
-export const getStealthServiceLogs = async (): Promise<string[]> => {
+export const getDarkWebServiceLogs = async (): Promise<string[]> => {
   try {
     // In a real implementation with Docker, this would execute:
     // const { exec } = require('child_process');
