@@ -1,10 +1,19 @@
 
-import { Message } from '@/components/MessageBubble';
-
 export interface Chat {
   id: string;
   title: string | null;
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  isLoading?: boolean;
+  documents?: any[];
+  isResearch?: boolean;
+  isRAG?: boolean; // New flag for RAG messages
 }

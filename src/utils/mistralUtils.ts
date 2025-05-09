@@ -5,6 +5,7 @@
  */
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
+import { retrieveDocuments } from './vectorStore';
 
 // Types for Mistral responses
 export interface MistralResponse {
@@ -20,9 +21,10 @@ export interface MistralResponse {
  */
 export const generateMistralResponse = async (
   prompt: string,
-  temperature: number
+  temperature: number,
+  useRAG: boolean = false
 ): Promise<MistralResponse> => {
-  console.log(`Generating unrestricted Mistral response for: ${prompt} (temp: ${temperature})`);
+  console.log(`Generating unrestricted Mistral response for: ${prompt} (temp: ${temperature}, RAG: ${useRAG})`);
   
   try {
     // OpenRouter API key
@@ -32,6 +34,26 @@ export const generateMistralResponse = async (
     toast.message("Calling OpenRouter API", {
       description: "Generating response with Mistral model...",
     });
+    
+    // Get relevant context if RAG is enabled
+    let enhancedPrompt = prompt;
+    let retrievedDocuments: string[] = [];
+    
+    if (useRAG) {
+      toast.loading("Retrieving relevant information...");
+      try {
+        retrievedDocuments = await retrieveDocuments(prompt, 5);
+        if (retrievedDocuments.length > 0) {
+          const context = retrievedDocuments.join("\n\n---\n\n");
+          enhancedPrompt = `Here is some relevant information that may help you answer the question:\n\n${context}\n\nQuestion: ${prompt}\n\nAnswer:`;
+          console.log("Enhanced prompt with RAG context");
+        }
+      } catch (error) {
+        console.error("Error retrieving documents for RAG:", error);
+        toast.error("Error retrieving relevant documents");
+      }
+      toast.dismiss();
+    }
     
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -50,7 +72,7 @@ export const generateMistralResponse = async (
           },
           {
             role: 'user',
-            content: prompt
+            content: enhancedPrompt
           }
         ],
         temperature: temperature
@@ -98,6 +120,7 @@ export const generateMistralResponse = async (
         temperature,
         promptTokens: data.usage?.prompt_tokens || 0,
         completionTokens: data.usage?.completion_tokens || 0,
+        retrievedDocuments: retrievedDocuments.length > 0 ? retrievedDocuments : undefined,
       }
     };
   } catch (error) {

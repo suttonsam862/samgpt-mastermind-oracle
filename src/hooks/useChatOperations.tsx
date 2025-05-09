@@ -155,7 +155,7 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
     }
   }, [input, isProcessing, modelId, temperature, webSearch, darkWeb, currentChatId, handleNewChat]);
 
-  // New function for deep research
+  // Function for deep research
   const handleDeepResearch = useCallback(async () => {
     if (!input.trim() || isProcessing) return;
     
@@ -252,6 +252,105 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
       setIsProcessing(false);
     }
   }, [input, isProcessing, modelId, temperature, webSearch, darkWeb, currentChatId, handleNewChat]);
+  
+  // New function for RAG queries
+  const handleRAGQuery = useCallback(async () => {
+    if (!input.trim() || isProcessing) return;
+    
+    // Create a new chat if there's no current chat
+    if (!currentChatId) {
+      handleNewChat();
+    }
+    
+    const chatId = currentChatId || uuidv4();
+    
+    const userMessage: Message = {
+      id: uuidv4(),
+      role: 'user',
+      content: input.trim(),
+      timestamp: new Date(),
+      isRAG: true
+    };
+    
+    const assistantMessage: Message = {
+      id: uuidv4(),
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      isLoading: true,
+      isRAG: true
+    };
+    
+    // Update the chat with these messages
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId 
+        ? {
+            ...chat,
+            messages: [...chat.messages, userMessage, assistantMessage],
+            updatedAt: new Date(),
+            // Set chat title based on first user message if not already set
+            title: chat.title || (chat.messages.length === 0 ? input.trim().slice(0, 30) : chat.title)
+          }
+        : chat
+    ));
+    
+    setInput('');
+    setIsProcessing(true);
+    
+    try {
+      // Generate response with RAG
+      const { response, documents } = await generateResponse(
+        input.trim(), 
+        modelId, 
+        temperature, 
+        webSearch, 
+        darkWeb,
+        true // Use RAG
+      );
+      
+      // Update the assistant message with the RAG response and any retrieved documents
+      setChats(prev => prev.map(chat => 
+        chat.id === chatId
+          ? {
+              ...chat,
+              messages: chat.messages.map(msg => 
+                msg.id === assistantMessage.id 
+                  ? {
+                      ...msg, 
+                      content: response,
+                      isLoading: false,
+                      documents,
+                      isRAG: true
+                    } 
+                  : msg
+              )
+            }
+          : chat
+      ));
+    } catch (error) {
+      console.error("Error processing RAG query:", error);
+      // Handle error case
+      setChats(prev => prev.map(chat => 
+        chat.id === chatId
+          ? {
+              ...chat,
+              messages: chat.messages.map(msg => 
+                msg.id === assistantMessage.id 
+                  ? {
+                      ...msg, 
+                      content: "Sorry, I encountered an error processing your RAG query. Please try again.",
+                      isLoading: false,
+                      isRAG: true
+                    } 
+                  : msg
+              )
+            }
+          : chat
+      ));
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [input, isProcessing, modelId, temperature, webSearch, darkWeb, currentChatId, handleNewChat]);
 
   return {
     messages,
@@ -263,6 +362,8 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
     handleNewChat,
     handleSelectChat,
     handleSubmit,
-    handleDeepResearch
+    handleDeepResearch,
+    handleRAGQuery
   };
 };
+

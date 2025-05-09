@@ -1,10 +1,14 @@
-
 /**
  * Utility functions for chat functionality
  */
 import { processWithHaystack } from './haystackUtils';
 import { generateMistralResponse, enhanceMistralWithHaystack, analyzePromptComplexity } from './mistralUtils';
 import { toast } from 'sonner';
+import { initVectorStore, loadSampleData } from './vectorStore';
+
+// Initialize vector store with sample data on module load
+initVectorStore();
+loadSampleData().catch(error => console.error("Error loading sample data:", error));
 
 /**
  * Generates a response to a user prompt, with optional Haystack integration
@@ -15,9 +19,36 @@ export const generateResponse = async (
   model: string, 
   temp: number,
   useWebSearch: boolean,
-  useDarkWeb: boolean
+  useDarkWeb: boolean,
+  useRAG: boolean = false
 ): Promise<{response: string, documents?: any[]}> => {
-  console.log(`Generating response with model: ${model}, temp: ${temp}, webSearch: ${useWebSearch}, darkWeb: ${useDarkWeb}`);
+  console.log(`Generating response with model: ${model}, temp: ${temp}, webSearch: ${useWebSearch}, darkWeb: ${useDarkWeb}, RAG: ${useRAG}`);
+  
+  // If using RAG mode
+  if (useRAG) {
+    try {
+      const mistralResponse = await generateMistralResponse(prompt, temp, true);
+      return {
+        response: mistralResponse.content,
+        documents: mistralResponse.metadata?.retrievedDocuments?.map((text: string, index: number) => ({
+          id: `rag-${index}`,
+          content: text,
+          meta: {
+            title: `Retrieved Document ${index + 1}`,
+            source: 'Local Vector Store',
+            date: new Date().toISOString().split('T')[0]
+          }
+        })) || []
+      };
+    } catch (error) {
+      console.error('Error generating RAG response:', error);
+      toast.error(`Failed to generate RAG response: ${error.message}`);
+      return {
+        response: `Error generating response with RAG: ${error.message}. Please try again.`,
+        documents: []
+      };
+    }
+  }
   
   // If using Mistral + Haystack model, use the research pipeline
   if (model === 'mistral-haystack') {
