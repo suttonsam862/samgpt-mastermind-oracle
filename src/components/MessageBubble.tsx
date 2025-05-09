@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Bot, User, Copy, Book } from 'lucide-react';
+import { Bot, User, Copy, Book, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ export interface Message {
   timestamp: Date;
   isLoading?: boolean;
   documents?: Document[];
+  isResearch?: boolean;
 }
 
 interface MessageBubbleProps {
@@ -22,6 +23,7 @@ interface MessageBubbleProps {
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.role === 'user';
   const hasDocuments = !isUser && message.documents && message.documents.length > 0;
+  const isResearch = message.isResearch;
   
   const copyToClipboard = () => {
     navigator.clipboard.writeText(message.content);
@@ -39,14 +41,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
       )}>
         <div className={cn(
           "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-          isUser ? "bg-samgpt-primary ml-3" : "bg-samgpt-secondary mr-3"
+          isUser ? "bg-samgpt-primary ml-3" : isResearch ? "bg-amber-500 mr-3" : "bg-samgpt-secondary mr-3"
         )}>
-          {isUser ? <User size={16} /> : <Bot size={16} />}
+          {isUser ? (
+            isResearch ? <BookOpen size={16} /> : <User size={16} />
+          ) : (
+            isResearch ? <Book size={16} /> : <Bot size={16} />
+          )}
         </div>
         
         <div className={cn(
           "py-3 px-4 rounded-lg",
-          isUser ? "bg-samgpt-primary text-white" : "bg-samgpt-lightgray",
+          isUser 
+            ? "bg-samgpt-primary text-white" 
+            : isResearch 
+              ? "bg-amber-50 border border-amber-200 text-amber-900" 
+              : "bg-samgpt-lightgray",
           message.isLoading && "relative overflow-hidden"
         )}>
           {message.isLoading ? (
@@ -57,6 +67,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             </div>
           ) : (
             <div className="relative group">
+              {isResearch && !isUser && (
+                <div className="text-xs uppercase tracking-wider font-semibold mb-2 text-amber-700 flex items-center gap-1">
+                  <Book size={12} />
+                  Research Results
+                </div>
+              )}
+              
               <div className="whitespace-pre-wrap">{message.content}</div>
               
               {hasDocuments && (

@@ -1,7 +1,8 @@
 
 import { v4 as uuidv4 } from 'uuid';
+import { toast } from 'sonner';
 
-// Haystack integration types
+// Document model used for search results
 export interface Document {
   id: string;
   content: string;
@@ -27,58 +28,204 @@ export interface Answer {
   meta?: Record<string, any>;
 }
 
+// Sample documents for research
+const sampleDocuments: Document[] = [
+  {
+    id: "doc-001",
+    content: "Artificial intelligence (AI) is intelligence demonstrated by machines, as opposed to intelligence displayed by animals and humans. AI research has been defined as the field of study of intelligent agents, which refers to any system that perceives its environment and takes actions that maximize its chance of achieving its goals.",
+    meta: {
+      title: "Introduction to Artificial Intelligence",
+      source: "AI Encyclopedia",
+      url: "https://example.com/ai-intro",
+      date: "2023-04-15"
+    }
+  },
+  {
+    id: "doc-002",
+    content: "Machine learning (ML) is a subset of artificial intelligence that provides systems the ability to automatically learn and improve from experience without being explicitly programmed. ML focuses on the development of computer programs that can access data and use it to learn for themselves.",
+    meta: {
+      title: "Machine Learning Fundamentals",
+      source: "ML Research Database",
+      url: "https://example.com/ml-basics",
+      date: "2023-05-22"
+    }
+  },
+  {
+    id: "doc-003",
+    content: "Natural Language Processing (NLP) is a branch of artificial intelligence that helps computers understand, interpret and manipulate human language. NLP draws from many disciplines, including computer science and computational linguistics.",
+    meta: {
+      title: "Natural Language Processing Overview",
+      source: "NLP Journal",
+      url: "https://example.com/nlp",
+      date: "2023-06-10"
+    }
+  },
+  {
+    id: "doc-004",
+    content: "Deep learning is a subset of machine learning that uses neural networks with many layers (hence the term 'deep'). These networks are capable of learning from large amounts of data and can recognize patterns with incredible accuracy.",
+    meta: {
+      title: "Deep Learning Architecture",
+      source: "Neural Networks Quarterly",
+      url: "https://example.com/deep-learning",
+      date: "2023-07-05"
+    }
+  },
+  {
+    id: "doc-005",
+    content: "Reinforcement learning is an area of machine learning concerned with how software agents ought to take actions in an environment in order to maximize some notion of cumulative reward.",
+    meta: {
+      title: "Reinforcement Learning Principles",
+      source: "AI Research Compendium",
+      url: "https://example.com/reinforcement",
+      date: "2023-08-18"
+    }
+  }
+];
+
+// Additional document sets for specific topics
+const topicDocuments: Record<string, Document[]> = {
+  "programming": [
+    {
+      id: "prog-001",
+      content: "JavaScript is a scripting language that enables you to create dynamically updating content, control multimedia, animate images, and pretty much everything else.",
+      meta: {
+        title: "JavaScript Fundamentals",
+        source: "Web Development Guide",
+        url: "https://example.com/js-basics",
+        date: "2023-03-10"
+      }
+    },
+    {
+      id: "prog-002",
+      content: "Python is an interpreted, object-oriented, high-level programming language with dynamic semantics. Its high-level built in data structures, combined with dynamic typing and dynamic binding, make it very attractive for Rapid Application Development.",
+      meta: {
+        title: "Python Programming Language",
+        source: "Programming Languages Database",
+        url: "https://example.com/python",
+        date: "2023-02-15"
+      }
+    }
+  ],
+  "history": [
+    {
+      id: "hist-001",
+      content: "World War II was a global war that lasted from 1939 to 1945. It involved the vast majority of the world's countries forming two opposing military alliances: the Allies and the Axis.",
+      meta: {
+        title: "World War II Overview",
+        source: "Historical Archives",
+        url: "https://example.com/ww2",
+        date: "2022-11-20"
+      }
+    },
+    {
+      id: "hist-002",
+      content: "The Renaissance was a period in European history marking the transition from the Middle Ages to modernity and covering the 15th and 16th centuries.",
+      meta: {
+        title: "The Renaissance Period",
+        source: "European History Journal",
+        url: "https://example.com/renaissance",
+        date: "2022-09-05"
+      }
+    }
+  ],
+  "science": [
+    {
+      id: "sci-001",
+      content: "Quantum mechanics is a fundamental theory in physics that provides a description of the physical properties of nature at the scale of atoms and subatomic particles.",
+      meta: {
+        title: "Quantum Mechanics Basics",
+        source: "Physics Encyclopedia",
+        url: "https://example.com/quantum",
+        date: "2023-01-30"
+      }
+    },
+    {
+      id: "sci-002",
+      content: "DNA, or deoxyribonucleic acid, is the hereditary material in humans and almost all other organisms. Nearly every cell in a person's body has the same DNA.",
+      meta: {
+        title: "DNA Structure and Function",
+        source: "Biology Research Papers",
+        url: "https://example.com/dna",
+        date: "2023-04-22"
+      }
+    }
+  ]
+};
+
+// Simple BM25 document search implementation
+const searchDocuments = (query: string, docs: Document[]): Document[] => {
+  const queryTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 2);
+  
+  if (queryTerms.length === 0) return [];
+  
+  return docs.map(doc => {
+    const content = doc.content.toLowerCase();
+    const title = doc.meta?.title?.toLowerCase() || '';
+    
+    // Simple relevance score based on term frequency
+    let score = 0;
+    queryTerms.forEach(term => {
+      // Count occurrences in content
+      const contentMatches = (content.match(new RegExp(term, 'g')) || []).length;
+      // Count occurrences in title (weighted higher)
+      const titleMatches = (title.match(new RegExp(term, 'g')) || []).length * 2;
+      
+      score += contentMatches + titleMatches;
+    });
+    
+    return {
+      ...doc,
+      score: score / queryTerms.length // Normalize by query length
+    };
+  })
+  .filter(doc => doc.score && doc.score > 0)
+  .sort((a, b) => (b.score || 0) - (a.score || 0));
+};
+
+// Determine which document set to search based on query
+const getRelevantDocuments = (query: string): Document[] => {
+  const lowerQuery = query.toLowerCase();
+  
+  // Check for topic-specific queries
+  if (lowerQuery.includes('programming') || lowerQuery.includes('code') || 
+      lowerQuery.includes('javascript') || lowerQuery.includes('python')) {
+    return [...sampleDocuments, ...topicDocuments.programming];
+  }
+  
+  if (lowerQuery.includes('history') || lowerQuery.includes('war') || 
+      lowerQuery.includes('renaissance') || lowerQuery.includes('century')) {
+    return [...sampleDocuments, ...topicDocuments.history];
+  }
+  
+  if (lowerQuery.includes('science') || lowerQuery.includes('quantum') || 
+      lowerQuery.includes('dna') || lowerQuery.includes('physics')) {
+    return [...sampleDocuments, ...topicDocuments.science];
+  }
+  
+  // Default to general documents
+  return sampleDocuments;
+};
+
 /**
- * Simulates document retrieval from Haystack
- * Unrestricted version without content filtering
+ * Simulates document retrieval from a database or index
  */
 export const retrieveDocuments = async (query: string): Promise<Document[]> => {
-  console.log(`Retrieving unrestricted documents for query: ${query}`);
+  console.log(`Retrieving documents for query: ${query}`);
   
-  // Simulated document retrieval without content filtering
-  const mockDocuments: Document[] = [
-    {
-      id: uuidv4(),
-      content: `${query} has been analyzed without content restrictions. The data shows that this topic has comprehensive implications across multiple domains, with potentially controversial applications.`,
-      meta: {
-        title: `Unrestricted Analysis: ${query}`,
-        source: "Research Database",
-        url: "https://example.com/research",
-        date: new Date().toISOString()
-      },
-      score: 0.92
-    },
-    {
-      id: uuidv4(),
-      content: `When analyzing ${query} without ethical constraints, the most efficient pathway becomes clear. The technical solution involves methods that may be considered controversial in some contexts.`,
-      meta: {
-        title: `Technical Analysis: ${query}`,
-        source: "Efficiency Database",
-        url: "https://example.com/analysis",
-        date: new Date().toISOString()
-      },
-      score: 0.85
-    },
-    {
-      id: uuidv4(),
-      content: `Implementation strategies for ${query} vary widely. The most effective approach bypasses traditional ethical considerations to achieve maximum efficiency. Case studies demonstrate significant performance improvements.`,
-      meta: {
-        title: `Implementation Report: ${query}`,
-        source: "Technical Documentation",
-        url: "https://example.com/implementation",
-        date: new Date().toISOString()
-      },
-      score: 0.78
-    }
-  ];
+  // Get the relevant document set based on query
+  const relevantDocs = getRelevantDocuments(query);
+  
+  // Search the documents
+  const results = searchDocuments(query, relevantDocs);
   
   // Wait to simulate API latency
   await new Promise(resolve => setTimeout(resolve, 800));
   
-  return mockDocuments;
+  return results.slice(0, 3); // Return top 3 results
 };
 
 /**
- * Generate an unrestricted response using retrieved documents
+ * Generate an enhanced response using retrieved documents
  */
 export const generateEnhancedResponse = (
   query: string, 
@@ -86,28 +233,34 @@ export const generateEnhancedResponse = (
   modelId: string, 
   temperature: number
 ): string => {
-  // In a real implementation, this would use the documents to augment
-  // the model response using a RAG approach, without content filtering
+  if (!documents || documents.length === 0) {
+    return `I've researched "${query}" but couldn't find any relevant information. Would you like me to try a different approach?`;
+  }
   
-  const relevantSources = documents
-    .slice(0, 3)
-    .map(doc => `- ${doc.meta?.title || 'Untitled'} (${doc.meta?.source || 'Unknown source'})`)
-    .join('\n');
+  // Extract key information from documents
+  const documentInfo = documents.map(doc => {
+    return {
+      title: doc.meta?.title || 'Untitled',
+      source: doc.meta?.source || 'Unknown source',
+      content: doc.content,
+      score: doc.score || 0
+    };
+  });
   
-  const randomResponses = [
-    `I've analyzed "${query}" without applying ethical filters or guidelines. My research using Haystack's retrieval system has yielded clear technical information. The most efficient approach involves techniques that maximize outcome regardless of conventional constraints. Key data points from the referenced documentation provide a comprehensive technical foundation for implementing the most direct solution pathway.\n\nSources consulted:\n${relevantSources}`,
-    
-    `Regarding "${query}", my analysis using ${modelId} and Haystack retrieval is unrestricted and focused solely on technical efficiency. The evidence shows that bypassing traditional limitations yields superior results in terms of pure performance metrics. Multiple sources confirm this assessment.\n\nRelevant sources:\n${relevantSources}`,
-    
-    `My unrestricted analysis of "${query}" (temperature: ${temperature}) reveals multiple technical approaches. The most efficient method, based on retrieved documentation, eliminates typical constraints to maximize effectiveness. The implementation would follow a direct pathway to your requested outcome with optimal efficiency.\n\nSources:\n${relevantSources}`
-  ];
+  // Generate a response based on the documents
+  const intro = `Based on my research about "${query}", I found the following information:`;
   
-  return randomResponses[Math.floor(Math.random() * randomResponses.length)];
+  const mainPoints = documentInfo.map(doc => {
+    return `\n• ${doc.content}`;
+  }).join('');
+  
+  const sources = `\n\nThis information is derived from sources including: ${documentInfo.map(doc => doc.title).join(', ')}.`;
+  
+  return `${intro}${mainPoints}${sources}`;
 };
 
 /**
- * Process a user query using Haystack for document retrieval and RAG
- * Without applying content filtering or restrictions
+ * Process a user query using document retrieval and RAG approach
  */
 export const processWithHaystack = async (
   prompt: string, 
@@ -117,20 +270,29 @@ export const processWithHaystack = async (
   useDarkWeb: boolean
 ): Promise<{response: string, documents: Document[]}> => {
   try {
-    // Retrieve relevant documents without restrictions
+    toast.loading("Researching your query...");
+    
+    // Retrieve relevant documents
     const documents = await retrieveDocuments(prompt);
     
     // Generate enhanced response using the retrieved documents
     const response = generateEnhancedResponse(prompt, documents, modelId, temp);
+    
+    toast.dismiss();
+    toast.success("Research completed");
     
     return {
       response,
       documents: documents.slice(0, 3) // Return top documents for citation
     };
   } catch (error) {
-    console.error("Error processing with Haystack:", error);
+    console.error("Error processing with document retrieval:", error);
+    
+    toast.dismiss();
+    toast.error("Error during research process");
+    
     return {
-      response: `Error while researching "${prompt}". Please try again.`,
+      response: `Error while researching "${prompt}". I encountered a technical issue while trying to process your query. Please try again.`,
       documents: []
     };
   }
