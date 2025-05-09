@@ -1,20 +1,75 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Message } from '@/components/MessageBubble';
+import { Chat } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { generateResponse } from '@/utils/chatUtils';
 
 export const useChatOperations = (temperature: number, webSearch: boolean, darkWeb: boolean, modelId: string) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [chats, setChats] = useState<Chat[]>(() => {
+    // Load chats from localStorage if available
+    const savedChats = localStorage.getItem('chats');
+    return savedChats ? JSON.parse(savedChats) : [];
+  });
+  
+  const [currentChatId, setCurrentChatId] = useState<string | null>(() => {
+    // Load current chat ID from localStorage if available
+    const savedCurrentChatId = localStorage.getItem('currentChatId');
+    if (savedCurrentChatId && chats.some(chat => chat.id === savedCurrentChatId)) {
+      return savedCurrentChatId;
+    }
+    return null;
+  });
+  
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // Save chats to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('chats', JSON.stringify(chats));
+  }, [chats]);
+  
+  // Save current chat ID to localStorage whenever it changes
+  useEffect(() => {
+    if (currentChatId) {
+      localStorage.setItem('currentChatId', currentChatId);
+    }
+  }, [currentChatId]);
+  
+  const getCurrentChat = useCallback(() => {
+    if (!currentChatId) return null;
+    return chats.find(chat => chat.id === currentChatId) || null;
+  }, [chats, currentChatId]);
+  
+  const messages = getCurrentChat()?.messages || [];
+  
   const handleNewChat = useCallback(() => {
-    setMessages([]);
+    const newChatId = uuidv4();
+    const newChat: Chat = {
+      id: newChatId,
+      title: null,
+      messages: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    setChats(prev => [...prev, newChat]);
+    setCurrentChatId(newChatId);
   }, []);
-
+  
+  const handleSelectChat = useCallback((chatId: string) => {
+    setCurrentChatId(chatId);
+  }, []);
+  
   const handleSubmit = useCallback(async () => {
     if (!input.trim() || isProcessing) return;
+    
+    // Create a new chat if there's no current chat
+    if (!currentChatId) {
+      handleNewChat();
+    }
+    
+    const chatId = currentChatId || uuidv4();
     
     const userMessage: Message = {
       id: uuidv4(),
@@ -31,7 +86,19 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
       isLoading: true
     };
     
-    setMessages(prev => [...prev, userMessage, assistantMessage]);
+    // Update the chat with these messages
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId 
+        ? {
+            ...chat,
+            messages: [...chat.messages, userMessage, assistantMessage],
+            updatedAt: new Date(),
+            // Set chat title based on first user message if not already set
+            title: chat.title || (chat.messages.length === 0 ? input.trim().slice(0, 30) : chat.title)
+          }
+        : chat
+    ));
+    
     setInput('');
     setIsProcessing(true);
     
@@ -46,39 +113,56 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
       );
       
       // Update the assistant message with the response and any retrieved documents
-      setMessages(prev => prev.map(msg => 
-        msg.id === assistantMessage.id 
+      setChats(prev => prev.map(chat => 
+        chat.id === chatId
           ? {
-              ...msg, 
-              content: response,
-              isLoading: false,
-              documents
-            } 
-          : msg
+              ...chat,
+              messages: chat.messages.map(msg => 
+                msg.id === assistantMessage.id 
+                  ? {
+                      ...msg, 
+                      content: response,
+                      isLoading: false,
+                      documents
+                    } 
+                  : msg
+              )
+            }
+          : chat
       ));
     } catch (error) {
       console.error("Error generating response:", error);
       // Handle error case
-      setMessages(prev => prev.map(msg => 
-        msg.id === assistantMessage.id 
+      setChats(prev => prev.map(chat => 
+        chat.id === chatId
           ? {
-              ...msg, 
-              content: "Sorry, I encountered an error processing your request. Please try again.",
-              isLoading: false
-            } 
-          : msg
+              ...chat,
+              messages: chat.messages.map(msg => 
+                msg.id === assistantMessage.id 
+                  ? {
+                      ...msg, 
+                      content: "Sorry, I encountered an error processing your request. Please try again.",
+                      isLoading: false
+                    } 
+                  : msg
+              )
+            }
+          : chat
       ));
     } finally {
       setIsProcessing(false);
     }
-  }, [input, isProcessing, modelId, temperature, webSearch, darkWeb]);
+  }, [input, isProcessing, modelId, temperature, webSearch, darkWeb, currentChatId, handleNewChat]);
 
   return {
     messages,
+    chats,
+    currentChatId,
     input,
     setInput,
     isProcessing,
     handleNewChat,
+    handleSelectChat,
     handleSubmit
   };
 };
