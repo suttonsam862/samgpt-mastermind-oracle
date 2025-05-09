@@ -6,7 +6,7 @@ import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 import ChatSidebar from './ChatSidebar';
 import { Button } from '@/components/ui/button';
-import { Book } from 'lucide-react';
+import { Book, Database, Search } from 'lucide-react';
 
 interface ChatInterfaceProps {
   temperature: number;
@@ -68,25 +68,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
+            className="gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 px-4 py-2 shadow-sm"
             onClick={onDeepResearch}
             disabled={!input.trim() || isProcessing || isResearching}
           >
             {isResearching ? (
               <>
-                <span className="animate-bounce mr-1">📚</span>
-                <span className="relative">
-                  <Book className="h-4 w-4 animate-pulse" />
-                  <span className="absolute top-0 left-0 h-4 w-4 animate-ping opacity-75">
+                <div className="flex items-center gap-2 animate-pulse">
+                  <span className="animate-bounce mr-1">📚</span>
+                  <span className="relative">
                     <Book className="h-4 w-4" />
+                    <span className="absolute top-0 left-0 h-4 w-4 animate-ping opacity-75">
+                      <Book className="h-4 w-4" />
+                    </span>
                   </span>
-                </span>
-                Researching...
+                  <Database className="h-4 w-4" />
+                  <Search className="h-4 w-4" />
+                  Researching...
+                </div>
               </>
             ) : (
               <>
                 <Book className="h-4 w-4" />
-                Deep Research
+                <span className="mr-1">Deep Research</span>
+                <span className="text-xs opacity-75">(Enhanced Knowledge Base)</span>
               </>
             )}
           </Button>
