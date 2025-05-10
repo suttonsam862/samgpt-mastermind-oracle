@@ -36,6 +36,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  // Handler for modal backdrop click - close the panel
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    // Only close if the backdrop itself is clicked
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   // Handle saving settings and closing the panel
   const handleSave = () => {
     // The settings are already saved through state updates
@@ -43,10 +51,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" 
+      onClick={handleBackdropClick}
+    >
       <div 
         className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-samgpt-darkgray rounded-lg shadow-lg p-6 border border-samgpt-lightgray glow-effect"
-        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the panel
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-samgpt-text">Settings</h2>
