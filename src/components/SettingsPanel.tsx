@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { X, Shield, Wifi, WifiOff, Lock, BookOpen } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,11 @@ import { Label } from "@/components/ui/label";
 import ModelSelector, { Model } from './ModelSelector';
 import { checkDarkWebServiceStatus, DarkWebServiceStatus } from '@/utils/dark_web_connector';
 import { toast } from "sonner";
+import { 
+  connectToTorNetwork, 
+  getTorPyActiveState, 
+  setTorPyActiveState 
+} from '@/utils/darkWebBridge';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -42,13 +48,45 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const panelRef = useRef<HTMLDivElement>(null);
   const [torStatus, setTorStatus] = useState<DarkWebServiceStatus>(DarkWebServiceStatus.UNAVAILABLE);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [isTorActive, setIsTorActive] = useState(() => getTorPyActiveState());
+
+  // Sync with global TorPy state
+  useEffect(() => {
+    const syncTorState = () => {
+      const globalState = getTorPyActiveState();
+      setIsTorActive(globalState);
+      
+      // Update status if TorPy is active
+      if (globalState) {
+        setTorStatus(DarkWebServiceStatus.AVAILABLE);
+      }
+    };
+    
+    // Initial sync
+    syncTorState();
+    
+    // Set up interval
+    const intervalId = setInterval(syncTorState, 3000);
+    return () => clearInterval(intervalId);
+  }, []);
+  
+  // Sync darkWeb setting with TorPy state when isTorActive changes
+  useEffect(() => {
+    if (isTorActive && !darkWeb) {
+      setDarkWeb(true);
+    }
+  }, [isTorActive, darkWeb, setDarkWeb]);
 
   // Check TorPy availability when the dark web toggle is switched on
   useEffect(() => {
-    if (darkWeb && !isCheckingStatus) {
+    if (darkWeb && !isTorActive && !isCheckingStatus) {
       checkTorAvailability();
+    } else if (!darkWeb && isTorActive) {
+      // If dark web setting is turned off but TorPy is active, disable TorPy
+      setTorPyActiveState(false);
+      setIsTorActive(false);
     }
-  }, [darkWeb]);
+  }, [darkWeb, isTorActive]);
 
   // Function to check TorPy availability
   const checkTorAvailability = async () => {
@@ -56,36 +94,41 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     
     setIsCheckingStatus(true);
     try {
-      // In development mode, simulate a successful connection
-      if (process.env.NODE_ENV === 'development') {
-        // Add artificial delay to simulate network request
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
+      // Attempt actual Tor connection
+      const success = await connectToTorNetwork();
+      
+      if (success) {
         setTorStatus(DarkWebServiceStatus.AVAILABLE);
-        toast.success("TorPy connection simulated", {
-          description: "Development mode: using simulated TorPy connections."
-        });
-        setIsCheckingStatus(false);
-        return;
-      }
-      
-      // Production mode: try actual connection
-      const status = await checkDarkWebServiceStatus();
-      setTorStatus(status);
-      
-      // Show a user-friendly toast on successful connection
-      if (status === DarkWebServiceStatus.AVAILABLE || status === DarkWebServiceStatus.RUNNING) {
+        setIsTorActive(true);
         toast.success("TorPy connection established", {
           description: "You can now use dark web features in your queries."
         });
+      } else {
+        setTorStatus(DarkWebServiceStatus.UNAVAILABLE);
+        setIsTorActive(false);
+        
+        if (process.env.NODE_ENV === 'development') {
+          // Force success in dev mode
+          setTorStatus(DarkWebServiceStatus.AVAILABLE);
+          setIsTorActive(true);
+          toast.success("TorPy connection simulated (dev mode)", {
+            description: "Dark web access is simulated for development."
+          });
+        } else {
+          toast.error("Failed to connect to TorPy", {
+            description: "Check your network connection and try again."
+          });
+        }
       }
     } catch (error) {
       console.error("Error checking TorPy status:", error);
       setTorStatus(DarkWebServiceStatus.UNAVAILABLE);
+      setIsTorActive(false);
       
       // In development mode, simulate working anyway
       if (process.env.NODE_ENV === 'development') {
         setTorStatus(DarkWebServiceStatus.AVAILABLE);
+        setIsTorActive(true);
         toast.success("TorPy connection simulated (dev mode)", {
           description: "Dark web access is simulated for development."
         });
@@ -126,7 +169,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   // Handle dark web toggle with TorPy check
   const handleDarkWebToggle = (checked: boolean) => {
     setDarkWeb(checked);
-    if (checked) {
+    if (checked && !isTorActive) {
       checkTorAvailability();
     }
   };
@@ -215,13 +258,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <span className="flex items-center text-yellow-400">
                       <Lock className="h-3 w-3 mr-1 animate-pulse" /> Checking TorPy status...
                     </span>
+                  ) : isTorActive ? (
+                    <span className="flex items-center text-green-400">
+                      <Wifi className="h-3 w-3 mr-1" /> TorPy connected and secure
+                    </span>
                   ) : process.env.NODE_ENV === 'development' ? (
                     <span className="flex items-center text-green-400">
                       <Wifi className="h-3 w-3 mr-1" /> TorPy simulated (development mode)
-                    </span>
-                  ) : torStatus === DarkWebServiceStatus.AVAILABLE ? (
-                    <span className="flex items-center text-green-400">
-                      <Wifi className="h-3 w-3 mr-1" /> TorPy connected and secure
                     </span>
                   ) : torStatus === DarkWebServiceStatus.RUNNING ? (
                     <span className="flex items-center text-blue-400">
@@ -238,17 +281,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <Switch 
               id="dark-web" 
               checked={darkWeb} 
-              onCheckedChange={(checked) => {
-                setDarkWeb(checked);
-                if (checked) {
-                  checkTorAvailability();
-                }
-              }} 
+              onCheckedChange={handleDarkWebToggle} 
             />
           </div>
           
           {/* Add TorPy information section when active */}
-          {darkWeb && torStatus === DarkWebServiceStatus.AVAILABLE && (
+          {isTorActive && (
             <div className="bg-purple-900/20 border border-purple-800/30 rounded-md p-3 text-sm">
               <h4 className="font-medium text-purple-200 flex items-center">
                 <Shield className="h-4 w-4 mr-2" /> TorPy Status Information

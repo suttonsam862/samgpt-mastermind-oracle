@@ -13,6 +13,42 @@ const API_BASE_URL = process.env.NODE_ENV === 'production'
   : 'http://localhost:3001/api/dark-web';
 
 /**
+ * Global state to track if TorPy is active for use throughout the app
+ */
+let isTorPyActive = false;
+
+/**
+ * Get current TorPy active state
+ */
+export function getTorPyActiveState(): boolean {
+  return isTorPyActive;
+}
+
+/**
+ * Set TorPy active state
+ */
+export function setTorPyActiveState(active: boolean): void {
+  isTorPyActive = active;
+  // Store in local storage to persist between page loads
+  localStorage.setItem('torpy-active', active ? 'true' : 'false');
+  console.log(`TorPy active state set to: ${active}`);
+}
+
+// Initialize from localStorage if available
+export function initializeTorPyStateFromStorage(): boolean {
+  try {
+    const stored = localStorage.getItem('torpy-active');
+    if (stored === 'true') {
+      isTorPyActive = true;
+      return true;
+    }
+  } catch (e) {
+    console.error("Error reading TorPy state from storage:", e);
+  }
+  return false;
+}
+
+/**
  * Call the Python dark web ingestion script via API
  * 
  * @param endpoint API endpoint to call
@@ -125,6 +161,7 @@ export async function initDarkWebBridge(): Promise<boolean> {
     
     if (status.status === 'available' || status.status === 'running') {
       console.log("Dark web bridge initialized successfully");
+      setTorPyActiveState(true);
       return true;
     } else {
       console.warn("Dark web service is unavailable", status);
@@ -132,9 +169,11 @@ export async function initDarkWebBridge(): Promise<boolean> {
       // In development mode, proceed with simulated bridge
       if (process.env.NODE_ENV === 'development') {
         console.log("Development mode: Proceeding with simulated dark web bridge");
+        // Don't automatically set active in dev mode - require explicit toggle
         return true;
       }
       
+      setTorPyActiveState(false);
       return false;
     }
   } catch (error) {
@@ -143,9 +182,54 @@ export async function initDarkWebBridge(): Promise<boolean> {
     if (process.env.NODE_ENV === 'development') {
       console.log("Development mode: Proceeding with simulated dark web bridge");
       toast.info("Using simulated TorPy connection (development mode)");
+      // Don't automatically set active in dev mode - require explicit toggle
       return true;
     }
     
+    setTorPyActiveState(false);
+    return false;
+  }
+}
+
+/**
+ * Actually connect to Tor network - used when user clicks the TorPy button
+ * @returns Promise that resolves to true if connection successful
+ */
+export async function connectToTorNetwork(): Promise<boolean> {
+  try {
+    console.log("Attempting to connect to Tor network...");
+    
+    // In development mode, simulate successful connection
+    if (process.env.NODE_ENV === 'development') {
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
+      console.log("Development mode: Simulating successful Tor connection");
+      setTorPyActiveState(true);
+      return true;
+    }
+    
+    // In production, make actual connection
+    const status = await callDarkWebAPI('connect', 'POST');
+    
+    if (status.success || status.status === 'connected' || status.status === 'available') {
+      console.log("Successfully connected to Tor network");
+      setTorPyActiveState(true);
+      return true;
+    } else {
+      console.warn("Failed to connect to Tor network", status);
+      setTorPyActiveState(false);
+      return false;
+    }
+  } catch (error) {
+    console.error("Error connecting to Tor network:", error);
+    
+    // In development, simulate success anyway
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Development mode: Simulating successful Tor connection despite error");
+      setTorPyActiveState(true);
+      return true;
+    }
+    
+    setTorPyActiveState(false);
     return false;
   }
 }
@@ -155,17 +239,35 @@ export async function initDarkWebBridge(): Promise<boolean> {
  * This helps with detecting when the Python service goes up or down
  */
 export function setupDarkWebEventListeners() {
+  // Check if TorPy was active in localStorage
+  const wasActive = initializeTorPyStateFromStorage();
+  if (wasActive) {
+    // If it was active before, try to reconnect
+    console.log("TorPy was previously active, attempting to reconnect...");
+    connectToTorNetwork().then(success => {
+      if (!success && process.env.NODE_ENV !== 'development') {
+        toast.error("Could not reconnect to TorPy", {
+          description: "TorPy was previously active but reconnection failed."
+        });
+      }
+    });
+  }
+  
   // Check status periodically
   setInterval(async () => {
-    try {
-      await callDarkWebAPI('status');
-      // Service is up, no need to notify
-    } catch (error) {
-      // Service is down, notify if it was previously up
-      toast.error("Dark web service connection lost", {
-        description: "Attempting to reconnect...",
-        duration: 5000
-      });
+    // Only check if TorPy is supposed to be active
+    if (isTorPyActive) {
+      try {
+        await callDarkWebAPI('status');
+        // Service is up, no need to notify
+      } catch (error) {
+        // Service is down, notify
+        toast.error("Dark web service connection lost", {
+          description: "Attempting to reconnect...",
+          duration: 5000
+        });
+        setTorPyActiveState(false);
+      }
     }
   }, 60000); // Check every minute
 }

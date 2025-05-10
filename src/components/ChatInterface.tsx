@@ -8,7 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Book, MessageSquare, Edit, Edit2, Shield, Wifi } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkDarkWebServiceStatus, DarkWebServiceStatus } from '@/utils/dark_web_connector';
-import { initDarkWebBridge, setupDarkWebEventListeners } from '@/utils/darkWebBridge';
+import { 
+  initDarkWebBridge, 
+  setupDarkWebEventListeners, 
+  connectToTorNetwork, 
+  getTorPyActiveState, 
+  setTorPyActiveState 
+} from '@/utils/darkWebBridge';
 
 interface ChatInterfaceProps {
   temperature: number;
@@ -31,10 +37,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isResearching, setIsResearching] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
-  const [isTorActive, setIsTorActive] = useState(false);
+  const [isTorActive, setIsTorActive] = useState(() => getTorPyActiveState());
   const [isCheckingTor, setIsCheckingTor] = useState(false);
   const [torInitialized, setTorInitialized] = useState(false);
   
+  // Initialize chat operations with both settings darkWeb and actual TorPy state
   const { 
     messages, 
     chats,
@@ -54,29 +61,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   useEffect(() => {
     const initialize = async () => {
       try {
-        // Always attempt to initialize in development mode
-        if (process.env.NODE_ENV === 'development') {
-          console.log("Development mode: Automatically initializing TorPy simulation");
-          setTorInitialized(true);
-          setupDarkWebEventListeners();
-          
-          // If darkWeb is enabled in settings, automatically simulate active status
-          if (darkWeb) {
-            setIsTorActive(true);
-            toast.success("TorPy connection simulated (dev mode)", {
-              description: "Dark web access is simulated for development."
-            });
-          }
-          return;
-        }
-        
-        // For production: actually try to connect
+        // Initialize the dark web bridge
         const success = await initDarkWebBridge();
         setTorInitialized(success);
+        
         if (success) {
           setupDarkWebEventListeners();
-          // If darkWeb is enabled in settings, automatically check Tor status
-          if (darkWeb) {
+          
+          // Update UI state based on the global TorPy state
+          const torActive = getTorPyActiveState();
+          setIsTorActive(torActive);
+          
+          // If darkWeb is enabled in settings and TorPy wasn't already active, automatically check status
+          if (darkWeb && !torActive) {
             checkTorStatus();
           }
         }
@@ -87,15 +84,29 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         // In development, still allow simulated mode
         if (process.env.NODE_ENV === 'development') {
           setTorInitialized(true);
-          if (darkWeb) {
-            setIsTorActive(true);
-          }
         }
       }
     };
     
     initialize();
+    
+    // Keep local state in sync with global TorPy state
+    const syncTorState = () => {
+      setIsTorActive(getTorPyActiveState());
+    };
+    
+    // Set up interval to sync the local state with global state
+    const intervalId = setInterval(syncTorState, 5000);
+    return () => clearInterval(intervalId);
   }, [darkWeb]);
+  
+  // Watch for changes in the global TorPy state
+  useEffect(() => {
+    const newState = getTorPyActiveState();
+    if (isTorActive !== newState) {
+      setIsTorActive(newState);
+    }
+  }, [isTorActive]);
   
   // Check TorPy status with actual service
   const checkTorStatus = async () => {
@@ -103,30 +114,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     
     setIsCheckingTor(true);
     try {
-      // In development mode, simulate success
-      if (process.env.NODE_ENV === 'development') {
-        console.log("Development mode: Simulating successful TorPy connection");
-        await new Promise(resolve => setTimeout(resolve, 800)); // Simulate network delay
-        setIsTorActive(true);
-        toast.success("TorPy connection simulated (dev mode)", {
-          description: "Dark web access is simulated for development."
-        });
-        setIsCheckingTor(false);
-        return;
-      }
+      // Call the new function that establishes actual Tor connection
+      const success = await connectToTorNetwork();
       
-      // Production mode: actually check status
-      const status = await checkDarkWebServiceStatus();
-      
-      if (status === DarkWebServiceStatus.AVAILABLE) {
+      if (success) {
         setIsTorActive(true);
         toast.success("TorPy connection established", {
           description: "Dark web access is now enabled for enhanced capabilities."
-        });
-      } else if (status === DarkWebServiceStatus.RUNNING) {
-        setIsTorActive(true);
-        toast.success("TorPy is currently running", {
-          description: "Dark web operations are in progress."
         });
       } else {
         setIsTorActive(false);
@@ -136,18 +130,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       }
     } catch (error) {
       console.error("Error checking TorPy status:", error);
-      
-      // Development mode fallback
-      if (process.env.NODE_ENV === 'development') {
-        console.log("Development mode: Simulating successful TorPy connection after error");
-        setIsTorActive(true);
-        toast.success("TorPy connection simulated (dev mode)", {
-          description: "Dark web access is simulated for development."
-        });
-      } else {
-        toast.error("Failed to connect to TorPy service");
-        setIsTorActive(false);
-      }
+      setIsTorActive(false);
+      toast.error("Failed to connect to TorPy service");
     } finally {
       setIsCheckingTor(false);
     }
@@ -159,6 +143,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       inputRef.current.focus();
     }
   }, [currentChatId]);
+  
+  // Handle TorPy button click - toggle active state
+  const handleTorPyToggle = async () => {
+    if (isTorActive) {
+      // If active, disconnect
+      setTorPyActiveState(false);
+      setIsTorActive(false);
+      toast.info("TorPy connection disabled", {
+        description: "Dark web access has been turned off."
+      });
+    } else {
+      // If inactive, try to connect
+      checkTorStatus();
+    }
+  };
   
   const onDeepResearch = async () => {
     if (!input.trim() || isProcessing || isResearching) return;
@@ -296,7 +295,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   ? "bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-300" 
                   : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
               }`}
-              onClick={checkTorStatus}
+              onClick={handleTorPyToggle}
               disabled={isCheckingTor}
             >
               {isCheckingTor ? (
