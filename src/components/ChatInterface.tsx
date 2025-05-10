@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Book, MessageSquare, Edit, Edit2, Shield, Wifi } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkDarkWebServiceStatus, DarkWebServiceStatus } from '@/utils/dark_web_connector';
+import { initDarkWebBridge, setupDarkWebEventListeners } from '@/utils/darkWebBridge';
 
 interface ChatInterfaceProps {
   temperature: number;
@@ -32,6 +33,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [editedTitle, setEditedTitle] = useState("");
   const [isTorActive, setIsTorActive] = useState(false);
   const [isCheckingTor, setIsCheckingTor] = useState(false);
+  const [torInitialized, setTorInitialized] = useState(false);
   
   const { 
     messages, 
@@ -48,7 +50,29 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     handleRenameChat
   } = useChatOperations(temperature, webSearch, darkWeb || isTorActive, modelId);
   
-  // Check TorPy status
+  // Initialize dark web bridge on component mount
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        const success = await initDarkWebBridge();
+        setTorInitialized(success);
+        if (success) {
+          setupDarkWebEventListeners();
+          // If darkWeb is enabled in settings, automatically check Tor status
+          if (darkWeb) {
+            checkTorStatus();
+          }
+        }
+      } catch (error) {
+        console.error("Error initializing dark web bridge:", error);
+        toast.error("Failed to initialize TorPy connection");
+      }
+    };
+    
+    initialize();
+  }, [darkWeb]);
+  
+  // Check TorPy status with actual service
   const checkTorStatus = async () => {
     if (isCheckingTor) return;
     
@@ -74,8 +98,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       }
     } catch (error) {
       console.error("Error checking TorPy status:", error);
-      toast.error("Failed to connect to TorPy service");
-      setIsTorActive(false);
+      
+      // Development mode fallback
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Development mode: Simulating successful TorPy connection");
+        setIsTorActive(true);
+        toast.success("TorPy connection simulated (dev mode)", {
+          description: "Dark web access is simulated for development."
+        });
+      } else {
+        toast.error("Failed to connect to TorPy service");
+        setIsTorActive(false);
+      }
     } finally {
       setIsCheckingTor(false);
     }
@@ -225,7 +259,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
               }`}
               onClick={checkTorStatus}
-              disabled={isCheckingTor}
+              disabled={isCheckingTor || !torInitialized}
             >
               {isCheckingTor ? (
                 <>

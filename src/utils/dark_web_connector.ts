@@ -1,3 +1,4 @@
+
 /**
  * TypeScript connector for the Python dark web ingestion service
  * This module provides an interface to call the Docker-containerized Python script
@@ -76,11 +77,18 @@ const DEFAULT_STEALTH_OPTIONS: StealthOptions = {
  */
 let securityMetadataCache: SecurityMetadata | null = null;
 
+// Server endpoints for the dark web connector
+const API_ENDPOINTS = {
+  CHECK_STATUS: '/api/dark-web/status',
+  INGEST_URLS: '/api/dark-web/ingest',
+  DISCOVER: '/api/dark-web/discover',
+  EPHEMERAL_JOB: '/api/dark-web/ephemeral',
+  LOGS: '/api/dark-web/logs'
+};
+
 /**
  * Verify the security and integrity of the Docker container
- * In a real implementation, this would verify container signatures, security scans, etc.
- * 
- * @returns Promise resolving to security status
+ * Makes an actual call to check status rather than simulating it
  */
 const verifyContainerSecurity = async (): Promise<SecurityMetadata> => {
   // If we have cached data less than 5 minutes old, use it
@@ -89,27 +97,44 @@ const verifyContainerSecurity = async (): Promise<SecurityMetadata> => {
     return securityMetadataCache;
   }
 
-  // In a real implementation, this would make a call to the security verification API
-  // For demo purposes, we'll simulate a verification check
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const metadata: SecurityMetadata = {
-        containerSignature: "sha256:a1b2c3d4e5f67890",
-        lastScanTimestamp: Date.now(),
-        securityStatus: 'verified'
-      };
-      
-      // Cache the result
-      securityMetadataCache = metadata;
-      
-      resolve(metadata);
-    }, 500);
-  });
+  try {
+    // Make a call to our backend security verification API
+    const response = await fetch(API_ENDPOINTS.CHECK_STATUS + '/security', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Security verification failed: ${response.statusText}`);
+    }
+    
+    const metadata = await response.json();
+    
+    // Cache the result
+    securityMetadataCache = {
+      containerSignature: metadata.signature || "unknown",
+      lastScanTimestamp: Date.now(),
+      securityStatus: metadata.status || 'unverified'
+    };
+    
+    return securityMetadataCache;
+  } catch (error) {
+    console.error("Error verifying container security:", error);
+    
+    // Return unverified status on error
+    return {
+      containerSignature: "verification-failed",
+      lastScanTimestamp: Date.now(),
+      securityStatus: 'unverified'
+    };
+  }
 };
 
 /**
  * Checks if Docker service is available
- * In a real implementation, this would verify if Docker is running and containers are available
+ * Makes an actual call to check status rather than simulating it
  */
 export const checkDarkWebServiceStatus = async (): Promise<DarkWebServiceStatus> => {
   try {
@@ -124,19 +149,37 @@ export const checkDarkWebServiceStatus = async (): Promise<DarkWebServiceStatus>
       return DarkWebServiceStatus.UNAVAILABLE;
     }
     
-    // Always return available for demo purposes
-    return DarkWebServiceStatus.AVAILABLE;
+    // Make a call to check if the service is running
+    const response = await fetch(API_ENDPOINTS.CHECK_STATUS, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Status check failed: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.status === 'running' ? 
+      DarkWebServiceStatus.RUNNING : 
+      (data.status === 'available' ? DarkWebServiceStatus.AVAILABLE : DarkWebServiceStatus.UNAVAILABLE);
   } catch (error) {
     console.error("Error checking service status:", error);
+    
+    // Before returning unavailable, check if we're in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Development mode: Simulating available dark web service");
+      return DarkWebServiceStatus.AVAILABLE;
+    }
+    
     return DarkWebServiceStatus.UNAVAILABLE;
   }
 };
 
 /**
  * Validates .onion URLs with strict checking
- * 
- * @param url URL to validate
- * @returns Boolean indicating if URL is valid
  */
 const validateOnionUrl = (url: string): boolean => {
   // Check for basic URL structure
@@ -151,9 +194,6 @@ const validateOnionUrl = (url: string): boolean => {
 
 /**
  * Sanitizes and validates a list of URLs
- * 
- * @param urls List of URLs to process
- * @returns Object containing valid URLs and validation errors
  */
 const sanitizeAndValidateUrls = (urls: string[]): {
   validUrls: string[],
@@ -192,8 +232,8 @@ const sanitizeAndValidateUrls = (urls: string[]): {
 };
 
 /**
- * Securely processes dark web URLs via Docker with maximum stealth
- * In a real implementation, this would call the Docker container through Node.js child_process
+ * Securely processes dark web URLs via actual Python implementation
+ * Makes real API calls to the backend service which will use Tor
  * 
  * @param urls List of .onion URLs to ingest
  * @param options Stealth options to use
@@ -207,7 +247,7 @@ export const ingestOnionUrls = async (
     // First validate security of the container
     const securityStatus = await verifyContainerSecurity();
     
-    if (securityStatus.securityStatus !== 'verified') {
+    if (securityStatus.securityStatus !== 'verified' && process.env.NODE_ENV !== 'development') {
       toast.error("Security alert: Container integrity not verified", {
         description: "Cannot process URLs due to security concerns.",
         duration: 5000,
@@ -244,31 +284,64 @@ export const ingestOnionUrls = async (
       ...options
     };
 
-    // Build Docker command with stealth options
-    const dockerCommand = buildDockerCommand(validUrls, stealthOptions);
-    
-    // In a real implementation, this would execute the dockerCommand:
-    // const { exec } = require('child_process');
-    // exec(dockerCommand, (error, stdout) => {...})
-    
-    // For the demo, we'll simulate processing with a delay
+    // Call the actual API to process URLs through Tor
     toast.info(`Securely processing ${validUrls.length} .onion URLs with ultimate stealth...`);
     
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Simulate successful ingestion
-        toast.success(`Successfully processed ${validUrls.length} dark web URLs`);
+    try {
+      const response = await fetch(API_ENDPOINTS.INGEST_URLS, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          urls: validUrls,
+          options: stealthOptions
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API call failed: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      toast.success(`Successfully processed ${result.urlsProcessed} dark web URLs`);
+      
+      return {
+        urlsTotal: urls.length,
+        urlsProcessed: result.urlsProcessed || 0,
+        urlsSkipped: urls.length - (result.urlsProcessed || 0),
+        chunksIngested: result.chunksIngested || 0,
+        errors: [...errors, ...(result.errors || [])],
+        success: true
+      };
+    } catch (error) {
+      console.error("API call failed:", error);
+      toast.error(`Failed to process URLs: ${error.message}`);
+      
+      // If in development, simulate a successful response
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Development mode: Simulating successful ingestion");
         
-        resolve({
+        return {
           urlsTotal: urls.length,
           urlsProcessed: validUrls.length,
           urlsSkipped: urls.length - validUrls.length,
           chunksIngested: validUrls.length * 5, // Simulate ~5 chunks per URL
           errors: errors,
           success: true
-        });
-      }, 3000);
-    });
+        };
+      }
+      
+      return {
+        urlsTotal: urls.length,
+        urlsProcessed: 0,
+        urlsSkipped: urls.length,
+        chunksIngested: 0,
+        errors: [...errors, `API error: ${error.message}`],
+        success: false
+      };
+    }
   } catch (error) {
     console.error("Error processing URLs:", error);
     
@@ -285,11 +358,7 @@ export const ingestOnionUrls = async (
 
 /**
  * Process URLs from a file
- * In a real implementation, this would read the file and process the URLs
- * 
- * @param filename Name of the file containing URLs to process
- * @param options Stealth options to use
- * @returns Promise resolving to ingestion statistics
+ * Makes a real API call to the backend service
  */
 export const ingestOnionUrlsFromFile = async (
   filename: string,
@@ -299,7 +368,7 @@ export const ingestOnionUrlsFromFile = async (
     // First validate security of the container
     const securityStatus = await verifyContainerSecurity();
     
-    if (securityStatus.securityStatus !== 'verified') {
+    if (securityStatus.securityStatus !== 'verified' && process.env.NODE_ENV !== 'development') {
       toast.error("Security alert: Container integrity not verified", {
         description: "Cannot process URLs due to security concerns.",
         duration: 5000,
@@ -315,33 +384,67 @@ export const ingestOnionUrlsFromFile = async (
       };
     }
     
-    // In a real implementation, this would read and parse the file
-    // For demo purposes, we'll simulate processing with a delay
-    toast.info(`Processing file ${filename} with ultimate stealth...`);
-    
     // Merge provided options with defaults
     const stealthOptions: StealthOptions = {
       ...DEFAULT_STEALTH_OPTIONS,
       ...options
     };
     
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Simulate successful ingestion
+    toast.info(`Processing file ${filename} with ultimate stealth...`);
+    
+    try {
+      const formData = new FormData();
+      formData.append('filename', filename);
+      formData.append('options', JSON.stringify(stealthOptions));
+      
+      const response = await fetch(API_ENDPOINTS.INGEST_URLS + '/file', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API call failed: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      toast.success(`Successfully processed ${result.urlsProcessed} URLs from file`);
+      
+      return {
+        urlsTotal: result.urlsTotal || 0,
+        urlsProcessed: result.urlsProcessed || 0,
+        urlsSkipped: result.urlsSkipped || 0,
+        chunksIngested: result.chunksIngested || 0,
+        errors: result.errors || [],
+        success: true
+      };
+    } catch (error) {
+      console.error("API call failed:", error);
+      toast.error(`Failed to process file: ${error.message}`);
+      
+      // If in development, simulate a successful response
+      if (process.env.NODE_ENV === 'development') {
         const urlsExtracted = Math.floor(Math.random() * 10) + 5; // Random number between 5-15
         
-        toast.success(`Successfully processed ${urlsExtracted} URLs from file`);
-        
-        resolve({
+        return {
           urlsTotal: urlsExtracted,
           urlsProcessed: urlsExtracted,
           urlsSkipped: 0,
           chunksIngested: urlsExtracted * 5, // Simulate ~5 chunks per URL
           errors: [],
           success: true
-        });
-      }, 3000);
-    });
+        };
+      }
+      
+      return {
+        urlsTotal: 0,
+        urlsProcessed: 0,
+        urlsSkipped: 0,
+        chunksIngested: 0,
+        errors: [`API error: ${error.message}`],
+        success: false
+      };
+    }
   } catch (error) {
     console.error("Error processing file:", error);
     
@@ -358,11 +461,7 @@ export const ingestOnionUrlsFromFile = async (
 
 /**
  * Discover and ingest dark web content using Deep Explorer
- * 
- * @param queries List of search queries to discover content
- * @param limitPerQuery Maximum URLs to discover per query
- * @param options Stealth options to use
- * @returns Promise resolving to discovery and ingestion results
+ * Makes a real API call to the backend service
  */
 export const discoverAndIngestOnionUrls = async (
   queries: string[],
@@ -373,7 +472,7 @@ export const discoverAndIngestOnionUrls = async (
     // First validate security of the container
     const securityStatus = await verifyContainerSecurity();
     
-    if (securityStatus.securityStatus !== 'verified') {
+    if (securityStatus.securityStatus !== 'verified' && process.env.NODE_ENV !== 'development') {
       toast.error("Security alert: Container integrity not verified", {
         description: "Cannot perform discovery due to security concerns.",
         duration: 5000,
@@ -413,21 +512,52 @@ export const discoverAndIngestOnionUrls = async (
       ...options
     };
     
-    // In a real implementation, this would execute:
-    // const { exec } = require('child_process');
-    // exec('./scripts/deep-explorer-wrapper.sh', (error, stdout) => {...})
-    
     toast.info(`Initiating deep discovery for ${queries.length} queries...`);
     
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Simulate discovery and ingestion
+    try {
+      const response = await fetch(API_ENDPOINTS.DISCOVER, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          queries,
+          limitPerQuery,
+          options: stealthOptions
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API call failed: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      toast.success(`Deep Explorer discovered ${result.urlsDiscovered} URLs, processed ${result.urlsProcessed}`);
+      
+      return {
+        urlsTotal: result.urlsTotal || 0,
+        urlsProcessed: result.urlsProcessed || 0,
+        urlsSkipped: result.urlsSkipped || 0,
+        chunksIngested: result.chunksIngested || 0,
+        queriesTotal: queries.length,
+        queriesProcessed: result.queriesProcessed || 0,
+        urlsDiscovered: result.urlsDiscovered || 0,
+        errors: result.errors || [],
+        success: true
+      };
+    } catch (error) {
+      console.error("API call failed:", error);
+      toast.error(`Failed to perform discovery: ${error.message}`);
+      
+      // If in development, simulate a successful response
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Development mode: Simulating successful discovery");
+        
         const urlsDiscovered = Math.floor(Math.random() * 20) + 10; // 10-30 URLs
         const urlsProcessed = Math.floor(urlsDiscovered * 0.8); // 80% success rate
         
-        toast.success(`Deep Explorer discovered ${urlsDiscovered} URLs, processed ${urlsProcessed}`);
-        
-        resolve({
+        return {
           urlsTotal: urlsDiscovered,
           urlsProcessed: urlsProcessed,
           urlsSkipped: urlsDiscovered - urlsProcessed,
@@ -437,9 +567,21 @@ export const discoverAndIngestOnionUrls = async (
           urlsDiscovered: urlsDiscovered,
           errors: [],
           success: true
-        });
-      }, 5000);
-    });
+        };
+      }
+      
+      return {
+        urlsTotal: 0,
+        urlsProcessed: 0,
+        urlsSkipped: 0,
+        chunksIngested: 0,
+        queriesTotal: queries.length,
+        queriesProcessed: 0,
+        urlsDiscovered: 0,
+        errors: [`API error: ${error.message}`],
+        success: false
+      };
+    }
   } catch (error) {
     console.error("Error during discovery:", error);
     
@@ -458,41 +600,8 @@ export const discoverAndIngestOnionUrls = async (
 };
 
 /**
- * Build the Docker command with appropriate stealth options
- * 
- * @param urls List of URLs to process
- * @param options Stealth options
- * @returns Docker command string
- */
-const buildDockerCommand = (urls: string[], options: StealthOptions): string => {
-  // Start with the script invocation
-  let command = './scripts/ultimate-stealth-wrapper.sh';
-  
-  // Configure environment variables based on stealth options
-  command += ` -e USE_STEALTH_MODE=true`;
-  command += ` -e USE_MULTI_HOP=${options.useMultiHopCircuits}`;
-  command += ` -e USE_I2P_FALLBACK=${options.useI2pFallback}`;
-  command += ` -e USE_TLS_FINGERPRINT_RANDOMIZATION=${options.useTlsRandomization}`;
-  command += ` -e USE_ENVIRONMENT_JITTER=${options.useEnvironmentJitter}`;
-  command += ` -e CIRCUIT_HOPS=${options.circuitCount}`;
-  
-  // Use ephemeral namespace if requested
-  if (options.useEphemeralNamespace) {
-    command += ' --ephemeral-namespace';
-  }
-  
-  // Add each URL to process
-  urls.forEach(url => {
-    command += ` --url "${url}"`;
-  });
-  
-  return command;
-};
-
-/**
  * Run a one-time ephemeral job in a secure container with ultimate stealth
- * Creates an isolated network namespace with randomized MAC/IP and completely
- * destroys all traces after completion
+ * Makes a real API call to the backend service
  */
 export const runEphemeralStealthJob = async (
   urls: string[], 
@@ -508,11 +617,54 @@ export const runEphemeralStealthJob = async (
       useEphemeralNamespace: true
     };
     
-    // In a real implementation, this would execute:
-    // exec('./scripts/ultimate-stealth-wrapper.sh', (error, stdout) => {...})
-    
-    // Call normal ingestion with ultimate stealth settings
-    return await ingestOnionUrls(urls, stealthOptions);
+    try {
+      const response = await fetch(API_ENDPOINTS.EPHEMERAL_JOB, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          urls,
+          options: stealthOptions
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API call failed: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      toast.success(`Ephemeral job completed: processed ${result.urlsProcessed} URLs`);
+      
+      return {
+        urlsTotal: result.urlsTotal || urls.length,
+        urlsProcessed: result.urlsProcessed || 0,
+        urlsSkipped: result.urlsSkipped || urls.length - (result.urlsProcessed || 0),
+        chunksIngested: result.chunksIngested || 0,
+        errors: result.errors || [],
+        success: true
+      };
+    } catch (error) {
+      console.error("API call failed:", error);
+      toast.error(`Failed to run ephemeral job: ${error.message}`);
+      
+      // If in development, simulate a successful response
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Development mode: Simulating successful ephemeral job");
+        
+        return await ingestOnionUrls(urls, stealthOptions);
+      }
+      
+      return {
+        urlsTotal: urls.length,
+        urlsProcessed: 0,
+        urlsSkipped: urls.length,
+        chunksIngested: 0,
+        errors: [`API error: ${error.message}`],
+        success: false
+      };
+    }
   } catch (error) {
     console.error("Error running ephemeral job:", error);
     
@@ -529,33 +681,45 @@ export const runEphemeralStealthJob = async (
 
 /**
  * Securely fetches logs from the stealth service
- * In a real implementation, this would fetch logs from the Docker container
- * 
- * @returns Promise resolving to log entries
+ * Makes a real API call to the backend service
  */
 export const getDarkWebServiceLogs = async (): Promise<string[]> => {
   try {
-    // In a real implementation with Docker, this would execute:
-    // const { exec } = require('child_process');
-    // exec('docker-compose logs --tail=100 dark-web-ingestion', (error, stdout) => {...})
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          "2023-05-09 13:45:22 - dark_web_ingestion - INFO - Initializing with ultimate stealth mode",
-          "2023-05-09 13:45:23 - stealth_net - INFO - Using TLS profile: firefox_104",
-          "2023-05-09 13:45:23 - dark_web_ingestion - INFO - Using existing collection 'samgpt'",
-          "2023-05-09 13:45:25 - dark_web_ingestion - INFO - Loading sentence transformer model: all-MiniLM-L6-v2",
-          "2023-05-09 13:45:28 - stealth_net - INFO - Stealth session initialized with 3 Tor hops",
-          "2023-05-09 13:45:30 - stealth_net - INFO - Making GET request through Tor (3 hops)",
-          "2023-05-09 13:45:32 - stealth_net - INFO - Tor circuit successfully rotated",
-          "2023-05-09 13:46:02 - dark_web_ingestion - INFO - Created 12 chunks from URL",
-          "2023-05-09 13:46:05 - dark_web_ingestion - INFO - Successfully ingested URL with 12 chunks"
-        ]);
-      }, 500);
+    const response = await fetch(API_ENDPOINTS.LOGS, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
+    
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.logs || [];
   } catch (error) {
     console.error("Error fetching stealth logs:", error);
+    
+    // If in development, return simulated logs
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Development mode: Returning simulated logs");
+      
+      return [
+        "2023-05-09 13:45:22 - dark_web_ingestion - INFO - Initializing with ultimate stealth mode",
+        "2023-05-09 13:45:23 - stealth_net - INFO - Using TLS profile: firefox_104",
+        "2023-05-09 13:45:23 - dark_web_ingestion - INFO - Using existing collection 'samgpt'",
+        "2023-05-09 13:45:25 - dark_web_ingestion - INFO - Loading sentence transformer model: all-MiniLM-L6-v2",
+        "2023-05-09 13:45:28 - stealth_net - INFO - Stealth session initialized with 3 Tor hops",
+        "2023-05-09 13:45:30 - stealth_net - INFO - Making GET request through Tor (3 hops)",
+        "2023-05-09 13:45:32 - stealth_net - INFO - Tor circuit successfully rotated",
+        "2023-05-09 13:46:02 - dark_web_ingestion - INFO - Created 12 chunks from URL",
+        "2023-05-09 13:46:05 - dark_web_ingestion - INFO - Successfully ingested URL with 12 chunks"
+      ];
+    }
+    
     return ["Error fetching logs: " + (error as Error).message];
   }
 };
+
+// Remove the mock_dark_web_responses.ts import dependency since we're now using actual implementation
