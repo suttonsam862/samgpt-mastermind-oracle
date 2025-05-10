@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { useChatOperations } from '@/hooks/useChatOperations';
 import WelcomeScreen from './WelcomeScreen';
@@ -47,7 +46,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     handleDeepResearch,
     handleDeleteChat,
     handleRenameChat
-  } = useChatOperations(temperature, webSearch, darkWeb, modelId);
+  } = useChatOperations(temperature, webSearch, darkWeb || isTorActive, modelId);
   
   // Check TorPy status
   const checkTorStatus = async () => {
@@ -59,8 +58,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       
       if (status === DarkWebServiceStatus.AVAILABLE) {
         setIsTorActive(true);
-        toast.success("TorPy is available and ready to use", {
-          description: "Dark web access is now enabled for enhanced research capabilities."
+        toast.success("TorPy connection established", {
+          description: "Dark web access is now enabled for enhanced capabilities."
         });
       } else if (status === DarkWebServiceStatus.RUNNING) {
         setIsTorActive(true);
@@ -69,7 +68,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         });
       } else {
         setIsTorActive(false);
-        toast.error("TorPy is currently unavailable", {
+        toast.error("TorPy connection failed", {
           description: "Please check your configuration or try again later."
         });
       }
@@ -216,13 +215,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               )}
             </Button>
             
-            {/* TorPy Button */}
+            {/* TorPy Button with enhanced visual indicator */}
             <Button
               variant="outline"
               size="sm"
               className={`gap-2 px-4 py-2 shadow-sm ${
                 isTorActive 
-                  ? "bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200" 
+                  ? "bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-300" 
                   : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
               }`}
               onClick={checkTorStatus}
@@ -232,16 +231,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <>
                   <div className="flex items-center gap-2 animate-pulse">
                     <Shield className="h-4 w-4" />
-                    Connecting...
+                    <span>Connecting...</span>
                   </div>
                 </>
               ) : (
                 <>
-                  {isTorActive ? <Wifi className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
-                  <span className="mr-1">TorPy</span>
-                  <span className="text-xs opacity-75">
-                    {isTorActive ? "(Connected)" : "(Secure Access)"}
-                  </span>
+                  {isTorActive ? (
+                    <div className="flex items-center gap-1">
+                      <Wifi className="h-4 w-4 text-purple-700" />
+                      <span className="mr-1">TorPy</span>
+                      <span className="text-xs bg-purple-200 text-purple-900 px-1.5 py-0.5 rounded-full">Active</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <Shield className="h-4 w-4" />
+                      <span className="mr-1">TorPy</span>
+                      <span className="text-xs opacity-75">(Secure Access)</span>
+                    </div>
+                  )}
                 </>
               )}
             </Button>

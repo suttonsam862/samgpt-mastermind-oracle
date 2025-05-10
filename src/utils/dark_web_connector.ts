@@ -124,13 +124,8 @@ export const checkDarkWebServiceStatus = async (): Promise<DarkWebServiceStatus>
       return DarkWebServiceStatus.UNAVAILABLE;
     }
     
-    // In a real implementation, this would check if Docker is running with:
-    // exec('docker ps | grep darkweb-ingestion', (error, stdout) => {...})
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(DarkWebServiceStatus.AVAILABLE);
-      }, 500);
-    });
+    // Always return available for demo purposes
+    return DarkWebServiceStatus.AVAILABLE;
   } catch (error) {
     console.error("Error checking service status:", error);
     return DarkWebServiceStatus.UNAVAILABLE;

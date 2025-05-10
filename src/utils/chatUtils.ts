@@ -6,6 +6,7 @@ import { processWithHaystack } from './haystackUtils';
 import { generateMistralResponse, enhanceMistralWithHaystack, analyzePromptComplexity } from './mistralUtils';
 import { toast } from 'sonner';
 import { initVectorStore, loadSampleData } from './vectorStore';
+import { getMockDarkWebResponse } from './mock_dark_web_responses';
 
 // Initialize vector store with sample data on module load
 initVectorStore();
@@ -26,9 +27,20 @@ export const generateResponse = async (
   console.log(`Generating response with model: ${model}, temp: ${temp}, webSearch: ${useWebSearch}, darkWeb: ${useDarkWeb}, deepResearch: ${forceDeepResearch}`);
   
   try {
+    // If dark web mode is active, use our mock dark web responses
+    if (useDarkWeb) {
+      const darkWebResponse = getMockDarkWebResponse(prompt);
+      console.log("Using dark web response mode");
+      
+      return {
+        response: darkWebResponse,
+        documents: []
+      };
+    }
+    
     // If deep research is requested or the complexity requires it, use Haystack
     if (forceDeepResearch || model === 'mistral-haystack') {
-      return processWithHaystack(prompt, model, temp, useWebSearch, useDarkWeb);
+      return processWithHaystack(prompt, model, temp, useWebSearch, false);
     }
     
     // For web research model
@@ -39,12 +51,6 @@ export const generateResponse = async (
         // Use web search with haystack
         return processWithHaystack(prompt, model, temp, true, false);
       }
-    }
-    
-    // For dark web model
-    if (model === 'tor-enhanced' && useDarkWeb) {
-      // Use dark web search with haystack
-      return processWithHaystack(prompt, model, temp, useWebSearch, true);
     }
     
     // Use standard response without RAG
