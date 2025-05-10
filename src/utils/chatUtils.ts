@@ -38,22 +38,26 @@ export const generateResponse = async (
       };
     }
     
-    // If deep research is requested or the complexity requires it, use Haystack
-    if (forceDeepResearch || model === 'mistral-haystack') {
+    // Always prioritize research for more informative responses
+    // Either explicit deep research or when using research-focused models
+    if (forceDeepResearch || model === 'mistral-haystack' || model === 'serpapi-enhanced') {
       return processWithHaystack(prompt, model, temp, useWebSearch, false);
     }
     
-    // For web research model
-    if (model === 'serpapi-enhanced') {
-      const complexity = analyzePromptComplexity(prompt);
-      
-      if (complexity > 0.6 || useWebSearch) {
-        // Use web search with haystack
-        return processWithHaystack(prompt, model, temp, true, false);
-      }
+    // Enhanced decision making - if the prompt appears to be a research query
+    // automatically use enhanced research capabilities
+    const complexity = analyzePromptComplexity(prompt);
+    const isResearchQuery = prompt.toLowerCase().includes('research') || 
+                           prompt.toLowerCase().includes('find') ||
+                           prompt.toLowerCase().includes('information about') ||
+                           prompt.toLowerCase().includes('tell me about') ||
+                           complexity > 0.5;
+    
+    if (isResearchQuery) {
+      return processWithHaystack(prompt, model, temp, true, false);
     }
     
-    // Use standard response without RAG
+    // For simpler queries, use standard response without RAG
     const mistralResponse = await generateMistralResponse(prompt, temp, false);
     return {
       response: mistralResponse.content,

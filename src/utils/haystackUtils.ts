@@ -486,7 +486,7 @@ export const generateEnhancedResponse = (
   temperature: number
 ): string => {
   if (!documents || documents.length === 0) {
-    return `I've researched "${query}" but couldn't find any relevant information. Would you like me to try a different approach?`;
+    return `I've researched "${query}" but couldn't find any relevant information. Please specify what you'd like me to research in more detail.`;
   }
   
   // Extract key information from documents
@@ -499,14 +499,14 @@ export const generateEnhancedResponse = (
     };
   });
   
-  // Generate a response based on the documents
-  const intro = `Based on my research about "${query}", I found the following information:`;
+  // Generate a response focused purely on delivering the research results
+  const intro = `Here's what I found about "${query}":`;
   
   const mainPoints = documentInfo.map(doc => {
     return `\n• ${doc.content}`;
   }).join('');
   
-  const sources = `\n\nThis information is derived from sources including: ${documentInfo.map(doc => doc.title).join(', ')}.`;
+  const sources = `\n\nSources: ${documentInfo.map(doc => doc.title).join(', ')}.`;
   
   return `${intro}${mainPoints}${sources}`;
 };
@@ -522,12 +522,12 @@ export const processWithHaystack = async (
   useDarkWeb: boolean
 ): Promise<{response: string, documents: Document[]}> => {
   try {
-    toast.loading("Researching your query...");
+    toast.loading("Researching your query thoroughly...");
     
     // Retrieve relevant documents
     const documents = await retrieveDocuments(prompt);
     
-    // Generate enhanced response using the retrieved documents
+    // Generate enhanced research-focused response
     const response = generateEnhancedResponse(prompt, documents, modelId, temp);
     
     toast.dismiss();
@@ -535,7 +535,7 @@ export const processWithHaystack = async (
     
     return {
       response,
-      documents: documents.slice(0, 5) // Return top documents for citation (increased from 3)
+      documents: documents.slice(0, 5)
     };
   } catch (error) {
     console.error("Error processing with document retrieval:", error);
@@ -544,7 +544,7 @@ export const processWithHaystack = async (
     toast.error("Error during research process");
     
     return {
-      response: `Error while researching "${prompt}". I encountered a technical issue while trying to process your query. Please try again.`,
+      response: `I encountered a technical issue while researching "${prompt}". Please try again with a more specific query.`,
       documents: []
     };
   }

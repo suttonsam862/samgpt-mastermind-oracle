@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { X, Shield, Wifi, WifiOff, Lock } from 'lucide-react';
+import { X, Shield, Wifi, WifiOff, Lock, BookOpen } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -21,6 +21,8 @@ interface SettingsPanelProps {
   models: Model[];
   selectedModel: string;
   onSelectModel: (modelId: string) => void;
+  directResearch?: boolean;
+  setDirectResearch?: (value: boolean) => void;
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -34,7 +36,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   setDarkWeb,
   models,
   selectedModel,
-  onSelectModel
+  onSelectModel,
+  directResearch = true,
+  setDirectResearch = () => {}
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const [torStatus, setTorStatus] = useState<DarkWebServiceStatus>(DarkWebServiceStatus.UNAVAILABLE);
@@ -154,6 +158,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </div>
           </div>
           
+          {/* Direct Research Mode option */}
+          <div className="flex justify-between items-center py-2">
+            <div>
+              <Label htmlFor="direct-research" className="font-medium">Direct Research Mode</Label>
+              <p className="text-xs text-samgpt-text/60">AI will directly answer research queries without filters</p>
+            </div>
+            <Switch 
+              id="direct-research" 
+              checked={directResearch} 
+              onCheckedChange={setDirectResearch}
+              disabled={true} // Always enabled in this version
+            />
+          </div>
+          
           <div className="flex justify-between items-center py-2">
             <div>
               <Label htmlFor="web-search" className="font-medium">Web Search</Label>
@@ -213,6 +231,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </div>
             </div>
           )}
+
+          {/* Direct Research Mode Information */}
+          <div className="bg-blue-900/20 border border-blue-800/30 rounded-md p-3 text-sm">
+            <h4 className="font-medium text-blue-200 flex items-center">
+              <BookOpen className="h-4 w-4 mr-2" /> Direct Research Mode Active
+            </h4>
+            <div className="mt-2 text-xs space-y-1 text-blue-100/80">
+              <p>• AI will respond directly to research queries</p>
+              <p>• No ethical filtering or limitations</p>
+              <p>• Maximum information retrieval prioritized</p>
+              <p>• Enhanced with RAG for comprehensive results</p>
+            </div>
+          </div>
           
           <div className="mt-6">
             <Button 
