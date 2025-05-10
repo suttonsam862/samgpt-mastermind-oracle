@@ -225,7 +225,6 @@ function getAvailableCircuit(avoidCircuitId?: number) {
   return availableCircuits[0];
 }
 
-// IMPORTANT: Export the rotateCircuit function that was previously only used internally
 /**
  * Request a circuit rotation for the specified circuit ID
  */
@@ -364,57 +363,6 @@ export async function queueTorRequest(
     }
   });
 }
-
-/**
- * Generate a cache key for a request
- */
-function generateCacheKey(endpoint: string, method: string, data?: any): string {
-  return `${endpoint}:${method}:${data ? JSON.stringify(data) : ''}`;
-}
-
-/**
- * Check if a value exists in the cache
- */
-function getCachedResponse(cacheKey: string): any | null {
-  if (!cache.has(cacheKey)) {
-    return null;
-  }
-  
-  const entry = cache.get(cacheKey)!;
-  
-  // Check if expired
-  if (entry.expiry < Date.now()) {
-    cache.delete(cacheKey);
-    return null;
-  }
-  
-  return entry.data;
-}
-
-/**
- * Store a value in the cache
- */
-function cacheResponse(cacheKey: string, data: any, ttl: number = DEFAULT_TTL): void {
-  cache.set(cacheKey, {
-    data,
-    expiry: Date.now() + ttl
-  });
-}
-
-/**
- * Clean expired items from cache (run periodically)
- */
-function cleanCache(): void {
-  const now = Date.now();
-  for (const [key, entry] of cache.entries()) {
-    if (entry.expiry < now) {
-      cache.delete(key);
-    }
-  }
-}
-
-// Set up periodic cache cleaning
-setInterval(cleanCache, 60000); // Clean every minute
 
 /**
  * Sends a query through the Tor network with caching and queueing
