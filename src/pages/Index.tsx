@@ -29,6 +29,16 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem('sidebarOpen', sidebarOpen.toString());
   }, [sidebarOpen]);
+
+  // Handler for opening settings
+  const handleOpenSettings = () => {
+    setSettingsOpen(true);
+  };
+
+  // Handler for closing settings
+  const handleCloseSettings = () => {
+    setSettingsOpen(false);
+  };
   
   const models: Model[] = [
     {
@@ -68,7 +78,7 @@ const Index = () => {
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <Header onOpenSettings={() => setSettingsOpen(true)} />
+        <Header onOpenSettings={handleOpenSettings} />
       </div>
       
       <div className="flex flex-grow overflow-hidden">
@@ -84,7 +94,7 @@ const Index = () => {
       
       <SettingsPanel
         isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        onClose={handleCloseSettings}
         temperature={temperature}
         setTemperature={setTemperature}
         webSearch={webSearch}

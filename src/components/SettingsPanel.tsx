@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -34,6 +34,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   selectedModel,
   onSelectModel
 }) => {
+  const panelRef = useRef<HTMLDivElement>(null);
+
   if (!isOpen) return null;
 
   // Handler for modal backdrop click - close the panel
@@ -44,9 +46,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   };
 
-  // Handle saving settings and closing the panel
-  const handleSave = () => {
-    // The settings are already saved through state updates
+  // Handle save button click
+  const handleSave = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+  };
+
+  // Handle close button click
+  const handleCloseClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     onClose();
   };
 
@@ -56,14 +66,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       onClick={handleBackdropClick}
     >
       <div 
+        ref={panelRef}
         className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-samgpt-darkgray rounded-lg shadow-lg p-6 border border-samgpt-lightgray glow-effect"
+        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the panel
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-samgpt-text">Settings</h2>
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={onClose}
+            onClick={handleCloseClick}
             className="hover:bg-samgpt-lightgray"
           >
             <X size={18} />
