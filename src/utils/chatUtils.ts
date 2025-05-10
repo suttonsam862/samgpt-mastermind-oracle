@@ -6,7 +6,7 @@ import { generateMistralResponse, enhanceMistralWithHaystack, analyzePromptCompl
 import { toast } from 'sonner';
 import { initVectorStore, loadSampleData } from './vectorStore';
 import { ingestOnionUrls, discoverAndIngestOnionUrls, runEphemeralStealthJob } from './dark_web_connector';
-import { getTorPyActiveState, generateDarkWebMockResponse } from './darkWebBridge';
+import { getTorPyActiveState, getActualDarkWebResponse } from './darkWebBridge';
 
 // Initialize vector store with sample data on module load
 initVectorStore();
@@ -32,14 +32,14 @@ export const generateResponse = async (
     
     // If dark web mode is active (either through settings or TorPy button), use Tor network connections
     if (useDarkWeb || isTorPyActive) {
-      console.log("Dark web mode active, attempting to use TorPy connection");
+      console.log("Dark web mode active, attempting to use actual Tor connection");
       
       // Show loading toast to user
-      const toastId = toast.loading("Processing dark web request...");
+      const toastId = toast.loading("Processing dark web request via Tor network...");
       
       try {
-        // Generate mock dark web response directly - ensures consistent TorPy experience
-        const response = await simulateDarkWebResponse(prompt);
+        // Use the actual Tor network to get a response
+        const response = await getActualDarkWebResponse(prompt);
         toast.dismiss(toastId);
         
         return {
@@ -53,13 +53,13 @@ export const generateResponse = async (
         
         // Fall back to standard response on error
         const mistralResponse = await generateMistralResponse(
-          `You are providing information about the dark web topic: ${prompt}. Respond as if you had accessed this information through the Tor network.`,
+          `You are providing information about the dark web topic: ${prompt}. Inform the user that the Tor connection failed and this is a standard AI response.`,
           temp,
           false
         );
         
         return {
-          response: `[TorPy Simulated] ${mistralResponse.content}`,
+          response: `[TorPy Connection Failed] ${mistralResponse.content}`,
           documents: []
         };
       }
@@ -99,17 +99,6 @@ export const generateResponse = async (
     };
   }
 };
-
-/**
- * Generate simulated dark web responses
- */
-async function simulateDarkWebResponse(prompt: string): Promise<string> {
-  // Wait for a short time to simulate network latency
-  await new Promise(resolve => setTimeout(resolve, 1200));
-  
-  // Use the mock response generator directly from darkWebBridge
-  return generateDarkWebMockResponse(prompt);
-}
 
 /**
  * Formats source citations from retrieved documents

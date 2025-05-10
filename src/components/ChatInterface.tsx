@@ -5,8 +5,9 @@ import WelcomeScreen from './WelcomeScreen';
 import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 import ChatSidebar from './ChatSidebar';
+import TorNetworkStatus from './TorNetworkStatus';
 import { Button } from '@/components/ui/button';
-import { Book, MessageSquare, Edit, Edit2, Shield, Wifi } from 'lucide-react';
+import { Book, MessageSquare, Edit, Edit2, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkDarkWebServiceStatus, DarkWebServiceStatus } from '@/utils/dark_web_connector';
 import { 
@@ -83,10 +84,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         console.error("Error initializing dark web bridge:", error);
         toast.error("Failed to initialize TorPy connection");
         
-        // In development, still allow simulated mode
-        if (process.env.NODE_ENV === 'development') {
-          setTorInitialized(true);
-        }
+        setTorInitialized(false);
       }
     };
     
@@ -123,30 +121,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       if (success) {
         setIsTorActive(true);
         toast.success("TorPy connection established", {
-          description: "Dark web access is now enabled for enhanced capabilities."
+          description: "Real Tor network access is now enabled."
         });
       } else {
         setIsTorActive(false);
-        if (process.env.NODE_ENV !== 'development') {
-          toast.error("TorPy connection failed", {
-            description: "Please check your configuration or try again later."
-          });
-        }
+        toast.error("TorPy connection failed", {
+          description: "Could not establish connection to the Tor network."
+        });
       }
     } catch (error) {
       console.error("Error checking TorPy status:", error);
-      
-      // In development mode, simulate working anyway
-      if (process.env.NODE_ENV === 'development') {
-        setIsTorActive(true);
-        setTorPyActiveState(true);
-        toast.success("TorPy connection simulated (dev mode)", {
-          description: "Dark web access is simulated for development."
-        });
-      } else {
-        setIsTorActive(false);
-        toast.error("Failed to connect to TorPy service");
-      }
+      setIsTorActive(false);
+      toast.error("Failed to connect to TorPy service");
     } finally {
       setIsCheckingTor(false);
     }
@@ -166,7 +152,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       setTorPyActiveState(false);
       setIsTorActive(false);
       toast.info("TorPy connection disabled", {
-        description: "Dark web access has been turned off."
+        description: "Tor network access has been turned off."
       });
     } else {
       // If inactive, try to connect
@@ -301,43 +287,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               )}
             </Button>
             
-            {/* TorPy Button with enhanced visual indicator */}
-            <Button
-              variant="outline"
-              size="sm"
-              className={`gap-2 px-4 py-2 shadow-sm ${
-                isTorActive 
-                  ? "bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-300" 
-                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-              }`}
-              onClick={handleTorPyToggle}
-              disabled={isCheckingTor}
-            >
-              {isCheckingTor ? (
-                <>
-                  <div className="flex items-center gap-2 animate-pulse">
-                    <Shield className="h-4 w-4" />
-                    <span>Connecting...</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {isTorActive ? (
-                    <div className="flex items-center gap-1">
-                      <Wifi className="h-4 w-4 text-purple-700" />
-                      <span className="mr-1">TorPy</span>
-                      <span className="text-xs bg-purple-200 text-purple-900 px-1.5 py-0.5 rounded-full">Active</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <Shield className="h-4 w-4" />
-                      <span className="mr-1">TorPy</span>
-                      <span className="text-xs opacity-75">(Secure Access)</span>
-                    </div>
-                  )}
-                </>
-              )}
-            </Button>
+            {/* TorPy Button using our new component */}
+            <TorNetworkStatus
+              onToggle={handleTorPyToggle}
+              isLoading={isCheckingTor}
+            />
           </div>
           
           <ChatInput

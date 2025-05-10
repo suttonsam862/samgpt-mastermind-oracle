@@ -64,12 +64,7 @@ export async function callDarkWebAPI(
 ): Promise<any> {
   const url = `${API_BASE_URL}/${endpoint}`;
   
-  // In development mode, ALWAYS use simulated responses
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`Development mode: Simulating successful API call to ${endpoint}`);
-    return simulateSuccessResponse(endpoint);
-  }
-  
+  // No more simulation - we'll attempt real connections
   try {
     const options: RequestInit = {
       method,
@@ -121,10 +116,11 @@ export async function callDarkWebAPI(
   } catch (error) {
     console.error(`Error calling dark web API (${endpoint}):`, error);
     
-    // In development, simulate successful responses
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`Development mode: Simulating successful API call to ${endpoint}`);
-      return simulateSuccessResponse(endpoint);
+    // If we can't connect to the real API, fall back to mock responses
+    // Only as a fallback, not the default behavior
+    if (error.message?.includes('Failed to fetch') || error.code === 'ECONNREFUSED') {
+      console.warn(`Falling back to mock response for ${endpoint} due to connection error`);
+      return getFallbackMockResponse(endpoint);
     }
     
     throw error;
@@ -132,10 +128,15 @@ export async function callDarkWebAPI(
 }
 
 /**
- * Generate simulated responses for development mode
+ * Generate fallback mock responses only when API is unreachable
  */
-function simulateSuccessResponse(endpoint: string): any {
+function getFallbackMockResponse(endpoint: string): any {
   // Return appropriate simulated responses based on endpoint
+  console.warn("Using fallback mock response due to API being unreachable");
+  toast.warning("Tor service unreachable", { 
+    description: "Using fallback simulation mode" 
+  });
+  
   if (endpoint === 'status') {
     return { status: 'available' };
   } else if (endpoint === 'logs') {
@@ -155,7 +156,10 @@ function simulateSuccessResponse(endpoint: string): any {
   }
   
   // Default simulated response for other endpoints
-  return { success: true };
+  return { 
+    success: true,
+    fallback: true 
+  };
 }
 
 /**
@@ -166,14 +170,7 @@ export async function initDarkWebBridge(): Promise<boolean> {
   try {
     console.log("Initializing dark web bridge...");
     
-    // In development mode, proceed with simulated bridge
-    if (process.env.NODE_ENV === 'development') {
-      console.log("Development mode: Proceeding with simulated dark web bridge");
-      // Read stored state, but don't auto-activate
-      initializeTorPyStateFromStorage();
-      return true;
-    }
-    
+    // Always attempt to connect to the real service
     const status = await callDarkWebAPI('status');
     
     if (status.status === 'available' || status.status === 'running') {
@@ -188,13 +185,7 @@ export async function initDarkWebBridge(): Promise<boolean> {
   } catch (error) {
     console.error("Failed to initialize dark web bridge:", error);
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log("Development mode: Proceeding with simulated dark web bridge");
-      // Read stored state, but don't auto-activate
-      initializeTorPyStateFromStorage();
-      return true;
-    }
-    
+    // Only set active if we actually connected
     setTorPyActiveState(false);
     return false;
   }
@@ -208,15 +199,7 @@ export async function connectToTorNetwork(): Promise<boolean> {
   try {
     console.log("Attempting to connect to Tor network...");
     
-    // In development mode, simulate successful connection
-    if (process.env.NODE_ENV === 'development') {
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
-      console.log("Development mode: Simulating successful Tor connection");
-      setTorPyActiveState(true);
-      return true;
-    }
-    
-    // In production, make actual connection
+    // Make actual connection attempt regardless of environment
     const status = await callDarkWebAPI('connect', 'POST');
     
     if (status.success || status.status === 'connected' || status.status === 'available') {
@@ -231,24 +214,38 @@ export async function connectToTorNetwork(): Promise<boolean> {
   } catch (error) {
     console.error("Error connecting to Tor network:", error);
     
-    // In development, simulate success anyway
-    if (process.env.NODE_ENV === 'development') {
-      console.log("Development mode: Simulating successful Tor connection despite error");
-      setTorPyActiveState(true);
-      return true;
-    }
-    
+    // No more simulated successes - if it fails, it fails
     setTorPyActiveState(false);
     return false;
   }
 }
 
 /**
- * Generate response for dark web query using mock data
+ * Generate response for dark web query using actual Tor network
+ * @param query The user's query
+ * @returns Promise that resolves to the response from the Tor network
  */
-export function generateDarkWebMockResponse(query: string): string {
-  // Use the mock_dark_web_responses module to generate a response
-  return getMockDarkWebResponse(query);
+export async function getActualDarkWebResponse(query: string): Promise<string> {
+  try {
+    // Send the query to the actual dark web service
+    const response = await callDarkWebAPI('query', 'POST', { query });
+    
+    if (response.success && response.content) {
+      return response.content;
+    } else {
+      throw new Error("Invalid response from dark web service");
+    }
+  } catch (error) {
+    console.error("Error getting dark web response:", error);
+    
+    // Only fall back to mock in case of actual connection failure
+    if (error.message?.includes('Failed to fetch') || error.code === 'ECONNREFUSED') {
+      console.warn("Falling back to mock dark web response due to connection error");
+      return getMockDarkWebResponse(query);
+    }
+    
+    throw error;
+  }
 }
 
 /**
@@ -262,7 +259,7 @@ export function setupDarkWebEventListeners() {
     // If it was active before, try to reconnect
     console.log("TorPy was previously active, attempting to reconnect...");
     connectToTorNetwork().then(success => {
-      if (!success && process.env.NODE_ENV !== 'development') {
+      if (!success) {
         toast.error("Could not reconnect to TorPy", {
           description: "TorPy was previously active but reconnection failed."
         });
