@@ -80,6 +80,17 @@ export const useChatPersistence = () => {
     }
     toast.success("Chat deleted successfully");
   };
+  
+  const renameChat = (chatId: string, newTitle: string) => {
+    setChats(prev => 
+      prev.map(chat => 
+        chat.id === chatId 
+          ? { ...chat, title: newTitle, updatedAt: new Date() } 
+          : chat
+      )
+    );
+    toast.success("Chat renamed successfully");
+  };
 
   return {
     chats,
@@ -87,6 +98,7 @@ export const useChatPersistence = () => {
     currentChatId,
     setCurrentChatId,
     getCurrentChat,
-    deleteChat
+    deleteChat,
+    renameChat
   };
 };

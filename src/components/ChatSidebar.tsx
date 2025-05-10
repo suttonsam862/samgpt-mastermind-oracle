@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MessageSquare, MessageSquarePlus, X, Trash2 } from 'lucide-react';
+import { MessageSquare, MessageSquarePlus, X, Trash2, Edit } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -18,6 +18,7 @@ interface ChatSidebarProps {
   onSelectChat: (chatId: string) => void;
   onNewChat: () => void;
   onDeleteChat?: (chatId: string) => void;
+  onRenameChat?: (chatId: string, newTitle: string) => void;
   isOpen: boolean;
   onToggleSidebar: () => void;
 }
@@ -28,6 +29,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onSelectChat,
   onNewChat,
   onDeleteChat,
+  onRenameChat,
   isOpen,
   onToggleSidebar
 }) => {
@@ -77,7 +79,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 <Button
                   variant="ghost"
                   className={cn(
-                    "w-full justify-start text-left font-normal relative truncate pr-8",
+                    "w-full justify-start text-left font-normal relative truncate pr-16",
                     currentChatId === chat.id && "bg-samgpt-lightgray"
                   )}
                   onClick={() => onSelectChat(chat.id)}
@@ -86,28 +88,57 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   <span className="truncate">{chat.title || "New conversation"}</span>
                 </Button>
                 
-                {onDeleteChat && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteChat(chat.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Delete chat</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex opacity-0 group-hover:opacity-100 transition-opacity">
+                  {onRenameChat && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // We'll handle the rename logic in the parent component
+                              const newTitle = prompt("Enter new chat name:", chat.title || "New conversation");
+                              if (newTitle && newTitle.trim()) {
+                                onRenameChat(chat.id, newTitle.trim());
+                              }
+                            }}
+                          >
+                            <Edit className="h-4 w-4 text-samgpt-text/70" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Rename chat</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  
+                  {onDeleteChat && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteChat(chat.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Delete chat</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
               </div>
             ))}
           </div>

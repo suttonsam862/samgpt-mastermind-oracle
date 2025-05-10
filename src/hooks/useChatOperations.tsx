@@ -20,7 +20,8 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
     currentChatId, 
     setCurrentChatId,
     getCurrentChat,
-    deleteChat
+    deleteChat,
+    renameChat
   } = useChatPersistence();
   
   // Basic message operations
@@ -46,6 +47,11 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
     deleteChat(chatId);
   }, [deleteChat]);
   
+  // Rename chat handler
+  const handleRenameChat = useCallback((chatId: string, newTitle: string) => {
+    renameChat(chatId, newTitle);
+  }, [renameChat]);
+  
   // Get current messages
   const messages = getCurrentChat()?.messages || [];
 
@@ -60,6 +66,7 @@ export const useChatOperations = (temperature: number, webSearch: boolean, darkW
     handleSelectChat,
     handleSubmit,
     handleDeepResearch,
-    handleDeleteChat
+    handleDeleteChat,
+    handleRenameChat
   };
 };

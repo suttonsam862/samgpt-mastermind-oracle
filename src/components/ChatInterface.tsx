@@ -6,7 +6,7 @@ import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 import ChatSidebar from './ChatSidebar';
 import { Button } from '@/components/ui/button';
-import { Book, MessageSquare } from 'lucide-react';
+import { Book, MessageSquare, Edit, Edit2 } from 'lucide-react';
 
 interface ChatInterfaceProps {
   temperature: number;
@@ -27,6 +27,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isResearching, setIsResearching] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
   
   const { 
     messages, 
@@ -39,7 +41,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     handleSelectChat,
     handleSubmit,
     handleDeepResearch,
-    handleDeleteChat
+    handleDeleteChat,
+    handleRenameChat
   } = useChatOperations(temperature, webSearch, darkWeb, modelId);
   
   // Set focus on input when chat changes
@@ -56,6 +59,35 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     await handleDeepResearch();
     setIsResearching(false);
   };
+
+  // Get current chat for title editing
+  const currentChat = chats.find(chat => chat.id === currentChatId);
+  
+  // Start edit mode
+  const startEditing = () => {
+    if (currentChat) {
+      setEditedTitle(currentChat.title || "New conversation");
+      setIsEditing(true);
+    }
+  };
+  
+  // Save edited title
+  const saveTitle = () => {
+    if (currentChatId && editedTitle.trim()) {
+      handleRenameChat(currentChatId, editedTitle.trim());
+    }
+    setIsEditing(false);
+  };
+  
+  // Handle key down events for title editing
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveTitle();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+    }
+  };
   
   return (
     <>
@@ -65,11 +97,54 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
+        onRenameChat={handleRenameChat}
         isOpen={sidebarOpen}
         onToggleSidebar={onToggleSidebar}
       />
       
       <div className={`flex-grow overflow-hidden transition-all duration-300 ${sidebarOpen ? 'md:ml-72' : 'ml-0'} flex flex-col`}>
+        {/* Chat title area (only shown for existing chats) */}
+        {currentChatId && messages.length > 0 && (
+          <div className="flex items-center justify-center p-2 border-b border-samgpt-lightgray">
+            {isEditing ? (
+              <div className="flex items-center">
+                <input
+                  type="text"
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  onBlur={saveTitle}
+                  onKeyDown={handleTitleKeyDown}
+                  className="bg-samgpt-dark border border-samgpt-lightgray rounded px-2 py-1 text-samgpt-text focus:outline-none focus:ring-1 focus:ring-samgpt-primary"
+                  autoFocus
+                  maxLength={50}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={saveTitle}
+                  className="ml-2"
+                >
+                  Save
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center">
+                <h2 className="text-samgpt-text font-medium truncate max-w-[200px] md:max-w-[400px]">
+                  {currentChat?.title || "New conversation"}
+                </h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={startEditing}
+                  className="ml-2 h-7 w-7"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+        
         {/* Messages area */}
         {messages.length === 0 ? (
           <WelcomeScreen setInput={setInput} inputRef={inputRef} />
@@ -77,7 +152,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <MessageList messages={messages} />
         )}
         
-        {/* Input area with Research button */}
+        {/* Input area with Research buttons */}
         <div className="flex flex-col">
           <div className="flex justify-center gap-2 mb-2">
             <Button

@@ -36,6 +36,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const handleClose = () => {
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-samgpt-darkgray rounded-lg shadow-lg p-6 border border-samgpt-lightgray glow-effect">
@@ -44,7 +48,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={onClose}
+            onClick={handleClose}
             className="hover:bg-samgpt-lightgray"
           >
             <X size={18} />
@@ -103,7 +107,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           
           <div className="mt-6">
             <Button 
-              onClick={onClose} 
+              onClick={handleClose} 
               className="w-full bg-gradient-to-r from-samgpt-primary to-samgpt-secondary hover:opacity-90"
             >
               Save Settings
