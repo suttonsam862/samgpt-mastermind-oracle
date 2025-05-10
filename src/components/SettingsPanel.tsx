@@ -36,19 +36,24 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const handleClose = () => {
+  // Handle saving settings and closing the panel
+  const handleSave = () => {
+    // The settings are already saved through state updates
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-samgpt-darkgray rounded-lg shadow-lg p-6 border border-samgpt-lightgray glow-effect">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div 
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-samgpt-darkgray rounded-lg shadow-lg p-6 border border-samgpt-lightgray glow-effect"
+        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the panel
+      >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-samgpt-text">Settings</h2>
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={handleClose}
+            onClick={onClose}
             className="hover:bg-samgpt-lightgray"
           >
             <X size={18} />
@@ -107,7 +112,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           
           <div className="mt-6">
             <Button 
-              onClick={handleClose} 
+              onClick={handleSave} 
               className="w-full bg-gradient-to-r from-samgpt-primary to-samgpt-secondary hover:opacity-90"
             >
               Save Settings
