@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Shield, Wifi, Terminal, RotateCcw, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { toast } from 'sonner';
 
 interface TorNetworkStatusProps {
   onToggle: () => Promise<void>;
@@ -148,13 +150,13 @@ const TorNetworkStatus: React.FC<TorNetworkStatusProps> = ({
     try {
       // Attempt to rotate circuit
       await rotateCircuit(circuitId);
-      toast.success(`Circuit ${circuitId} rotated successfully`);
+      toast(`Circuit ${circuitId} rotated successfully`);
       
       // Refresh circuit info after a short delay
       setTimeout(loadCircuitInfo, 2000);
     } catch (error) {
       console.error(`Failed to rotate circuit ${circuitId}:`, error);
-      toast.error(`Failed to rotate circuit ${circuitId}`);
+      toast(`Failed to rotate circuit ${circuitId}`);
       
       // Revert status
       setCircuits(prev => 
@@ -296,12 +298,12 @@ const TorNetworkStatus: React.FC<TorNetworkStatusProps> = ({
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <Badge variant={circuit.status === 'ready' ? 'success' : 'outline'}>
+                            <Badge variant="outline">
                               Circuit {circuit.id}
                             </Badge>
                             <span className="text-sm text-slate-500">Port: {circuit.port}</span>
                             {circuit.status === 'ready' ? (
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
                                 Ready
                               </Badge>
                             ) : circuit.status === 'cooling' ? (
