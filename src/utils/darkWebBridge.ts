@@ -6,6 +6,7 @@
  */
 
 import { toast } from 'sonner';
+import { getMockDarkWebResponse } from './mock_dark_web_responses';
 
 // API base URL for development and production
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
@@ -63,6 +64,12 @@ export async function callDarkWebAPI(
 ): Promise<any> {
   const url = `${API_BASE_URL}/${endpoint}`;
   
+  // In development mode, ALWAYS use simulated responses
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`Development mode: Simulating successful API call to ${endpoint}`);
+    return simulateSuccessResponse(endpoint);
+  }
+  
   try {
     const options: RequestInit = {
       method,
@@ -93,12 +100,7 @@ export async function callDarkWebAPI(
       const textResponse = await response.text();
       console.log(`Received non-JSON response: ${textResponse.substring(0, 100)}...`);
       
-      // In development mode, use simulated responses
-      if (process.env.NODE_ENV === 'development') {
-        return simulateSuccessResponse(endpoint);
-      }
-      
-      // For production, try to parse the response or return a default
+      // Try to parse the response or return a default
       try {
         // Attempt to extract JSON from HTML or text response (sometimes APIs embed JSON in HTML)
         const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
@@ -144,6 +146,12 @@ function simulateSuccessResponse(endpoint: string): any {
         "2023-05-09 13:45:30 - stealth_net - INFO - Making GET request through Tor (3 hops)"
       ]
     };
+  } else if (endpoint === 'connect') {
+    return { 
+      status: 'connected',
+      success: true,
+      message: "Successfully connected to Tor network"
+    };
   }
   
   // Default simulated response for other endpoints
@@ -157,6 +165,15 @@ function simulateSuccessResponse(endpoint: string): any {
 export async function initDarkWebBridge(): Promise<boolean> {
   try {
     console.log("Initializing dark web bridge...");
+    
+    // In development mode, proceed with simulated bridge
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Development mode: Proceeding with simulated dark web bridge");
+      // Read stored state, but don't auto-activate
+      initializeTorPyStateFromStorage();
+      return true;
+    }
+    
     const status = await callDarkWebAPI('status');
     
     if (status.status === 'available' || status.status === 'running') {
@@ -165,14 +182,6 @@ export async function initDarkWebBridge(): Promise<boolean> {
       return true;
     } else {
       console.warn("Dark web service is unavailable", status);
-      
-      // In development mode, proceed with simulated bridge
-      if (process.env.NODE_ENV === 'development') {
-        console.log("Development mode: Proceeding with simulated dark web bridge");
-        // Don't automatically set active in dev mode - require explicit toggle
-        return true;
-      }
-      
       setTorPyActiveState(false);
       return false;
     }
@@ -181,8 +190,8 @@ export async function initDarkWebBridge(): Promise<boolean> {
     
     if (process.env.NODE_ENV === 'development') {
       console.log("Development mode: Proceeding with simulated dark web bridge");
-      toast.info("Using simulated TorPy connection (development mode)");
-      // Don't automatically set active in dev mode - require explicit toggle
+      // Read stored state, but don't auto-activate
+      initializeTorPyStateFromStorage();
       return true;
     }
     
@@ -232,6 +241,14 @@ export async function connectToTorNetwork(): Promise<boolean> {
     setTorPyActiveState(false);
     return false;
   }
+}
+
+/**
+ * Generate response for dark web query using mock data
+ */
+export function generateDarkWebMockResponse(query: string): string {
+  // Use the mock_dark_web_responses module to generate a response
+  return getMockDarkWebResponse(query);
 }
 
 /**
