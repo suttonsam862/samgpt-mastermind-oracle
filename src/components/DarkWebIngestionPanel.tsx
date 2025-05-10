@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -14,8 +13,10 @@ import {
   ingestOnionUrlsFromFile, 
   checkDarkWebServiceStatus, 
   getDarkWebServiceLogs,
+  discoverAndIngestOnionUrls,
   DarkWebServiceStatus,
-  DarkWebIngestionResult
+  DarkWebIngestionResult,
+  DarkWebDiscoveryResult
 } from "../utils/dark_web_connector";
 
 const DarkWebIngestionPanel: React.FC = () => {
@@ -26,6 +27,8 @@ const DarkWebIngestionPanel: React.FC = () => {
   const [processing, setProcessing] = useState<boolean>(false);
   const [result, setResult] = useState<DarkWebIngestionResult | null>(null);
   const [activeTab, setActiveTab] = useState<string>('urls');
+  const [searchQueries, setSearchQueries] = useState<string>('');
+  const [discoveryLimit, setDiscoveryLimit] = useState<number>(20);
 
   // Check service status on component mount
   useEffect(() => {
@@ -136,6 +139,52 @@ const DarkWebIngestionPanel: React.FC = () => {
     }
   };
   
+  // Handle discovery submission
+  const handleDiscoverySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!searchQueries.trim()) {
+      toast.error("Please enter at least one search query");
+      return;
+    }
+    
+    const queryList = searchQueries
+      .split('\n')
+      .map(query => query.trim())
+      .filter(query => query.length > 0);
+    
+    if (queryList.length === 0) {
+      toast.error("No valid search queries found");
+      return;
+    }
+    
+    setProcessing(true);
+    setServiceStatus(DarkWebServiceStatus.RUNNING);
+    
+    try {
+      const result = await discoverAndIngestOnionUrls(queryList, discoveryLimit);
+      setResult(result);
+      
+      if (result.success) {
+        toast.success(`Successfully discovered ${result.urlsDiscovered} URLs and processed ${result.urlsProcessed}`);
+      } else {
+        toast.error("Error during discovery and ingestion", {
+          description: result.errors.join(", ")
+        });
+      }
+    } catch (error) {
+      toast.error("Failed to run discovery", {
+        description: error instanceof Error ? error.message : "Unknown error"
+      });
+    } finally {
+      setProcessing(false);
+      setServiceStatus(DarkWebServiceStatus.AVAILABLE);
+      // Refresh logs after processing
+      const newLogs = await getDarkWebServiceLogs();
+      setLogs(newLogs);
+    }
+  };
+  
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -197,6 +246,7 @@ const DarkWebIngestionPanel: React.FC = () => {
           <TabsList className="w-full mb-4">
             <TabsTrigger value="urls" className="flex-1">URL List</TabsTrigger>
             <TabsTrigger value="file" className="flex-1">File Upload</TabsTrigger>
+            <TabsTrigger value="discovery" className="flex-1">Deep Discovery</TabsTrigger>
             <TabsTrigger value="logs" className="flex-1">Logs</TabsTrigger>
           </TabsList>
           
@@ -254,6 +304,54 @@ const DarkWebIngestionPanel: React.FC = () => {
             </form>
           </TabsContent>
           
+          <TabsContent value="discovery">
+            <form onSubmit={handleDiscoverySubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Search Queries (one per line)
+                </label>
+                <Textarea
+                  placeholder="Enter search queries (one per line)"
+                  className="min-h-[150px] font-mono text-sm mb-3"
+                  value={searchQueries}
+                  onChange={(e) => setSearchQueries(e.target.value)}
+                  disabled={processing || serviceStatus === DarkWebServiceStatus.UNAVAILABLE}
+                />
+                <div className="flex items-center">
+                  <label htmlFor="discovery-limit" className="block text-sm font-medium text-gray-700 mr-2">
+                    Max URLs per query:
+                  </label>
+                  <Input
+                    id="discovery-limit"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={discoveryLimit}
+                    onChange={(e) => setDiscoveryLimit(parseInt(e.target.value) || 20)}
+                    className="w-24"
+                    disabled={processing || serviceStatus === DarkWebServiceStatus.UNAVAILABLE}
+                  />
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  Uses Deep Explorer to discover .onion URLs based on search queries
+                </p>
+              </div>
+              
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={processing || serviceStatus === DarkWebServiceStatus.UNAVAILABLE}
+              >
+                {processing ? (
+                  <>
+                    <Spinner className="mr-2" />
+                    Running Deep Discovery...
+                  </>
+                ) : "Run Deep Discovery"}
+              </Button>
+            </form>
+          </TabsContent>
+          
           <TabsContent value="logs">
             <div className="bg-black rounded-md p-4 text-green-400 font-mono text-xs h-[300px] overflow-y-auto">
               {logs.length > 0 ? (
@@ -270,6 +368,22 @@ const DarkWebIngestionPanel: React.FC = () => {
         {result && (
           <div className="mt-6">
             <h3 className="text-lg font-medium mb-2">Processing Results</h3>
+            {/* Display discovery-specific results if available */}
+            {(result as DarkWebDiscoveryResult).urlsDiscovered !== undefined && (
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <p className="text-sm text-gray-500">Queries Processed</p>
+                  <p className="text-xl font-bold">
+                    {(result as DarkWebDiscoveryResult).queriesProcessed} of {(result as DarkWebDiscoveryResult).queriesTotal}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">URLs Discovered</p>
+                  <p className="text-xl font-bold">{(result as DarkWebDiscoveryResult).urlsDiscovered}</p>
+                </div>
+              </div>
+            )}
+            
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p className="text-sm text-gray-500">URLs Processed</p>
@@ -310,6 +424,7 @@ const DarkWebIngestionPanel: React.FC = () => {
           onClick={() => {
             setUrls('');
             setFile(null);
+            setSearchQueries('');
             setResult(null);
           }}
         >

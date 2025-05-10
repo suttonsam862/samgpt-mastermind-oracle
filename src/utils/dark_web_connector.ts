@@ -19,6 +19,15 @@ export interface DarkWebIngestionResult {
 }
 
 /**
+ * Discovery result containing both discovery and ingestion stats
+ */
+export interface DarkWebDiscoveryResult extends DarkWebIngestionResult {
+  queriesTotal: number;
+  queriesProcessed: number;
+  urlsDiscovered: number;
+}
+
+/**
  * Status of the dark web ingestion service
  */
 export enum DarkWebServiceStatus {
@@ -347,6 +356,107 @@ export const ingestOnionUrlsFromFile = async (
       urlsSkipped: 0,
       chunksIngested: 0,
       errors: [(error as Error).message || "Unknown error processing file"],
+      success: false
+    };
+  }
+};
+
+/**
+ * Discover and ingest dark web content using Deep Explorer
+ * 
+ * @param queries List of search queries to discover content
+ * @param limitPerQuery Maximum URLs to discover per query
+ * @param options Stealth options to use
+ * @returns Promise resolving to discovery and ingestion results
+ */
+export const discoverAndIngestOnionUrls = async (
+  queries: string[],
+  limitPerQuery: number = 20,
+  options: Partial<StealthOptions> = {}
+): Promise<DarkWebDiscoveryResult> => {
+  try {
+    // First validate security of the container
+    const securityStatus = await verifyContainerSecurity();
+    
+    if (securityStatus.securityStatus !== 'verified') {
+      toast.error("Security alert: Container integrity not verified", {
+        description: "Cannot perform discovery due to security concerns.",
+        duration: 5000,
+      });
+      
+      return {
+        urlsTotal: 0,
+        urlsProcessed: 0,
+        urlsSkipped: 0,
+        chunksIngested: 0,
+        queriesTotal: queries.length,
+        queriesProcessed: 0,
+        urlsDiscovered: 0,
+        errors: ["Container security check failed"],
+        success: false
+      };
+    }
+    
+    if (!queries || queries.length === 0) {
+      toast.error("No search queries provided");
+      return {
+        urlsTotal: 0,
+        urlsProcessed: 0,
+        urlsSkipped: 0,
+        chunksIngested: 0,
+        queriesTotal: 0,
+        queriesProcessed: 0,
+        urlsDiscovered: 0,
+        errors: ["No search queries provided"],
+        success: false
+      };
+    }
+    
+    // Merge provided options with defaults
+    const stealthOptions: StealthOptions = {
+      ...DEFAULT_STEALTH_OPTIONS,
+      ...options
+    };
+    
+    // In a real implementation, this would execute:
+    // const { exec } = require('child_process');
+    // exec('./scripts/deep-explorer-wrapper.sh', (error, stdout) => {...})
+    
+    toast.info(`Initiating deep discovery for ${queries.length} queries...`);
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Simulate discovery and ingestion
+        const urlsDiscovered = Math.floor(Math.random() * 20) + 10; // 10-30 URLs
+        const urlsProcessed = Math.floor(urlsDiscovered * 0.8); // 80% success rate
+        
+        toast.success(`Deep Explorer discovered ${urlsDiscovered} URLs, processed ${urlsProcessed}`);
+        
+        resolve({
+          urlsTotal: urlsDiscovered,
+          urlsProcessed: urlsProcessed,
+          urlsSkipped: urlsDiscovered - urlsProcessed,
+          chunksIngested: urlsProcessed * 5, // ~5 chunks per URL
+          queriesTotal: queries.length,
+          queriesProcessed: queries.length,
+          urlsDiscovered: urlsDiscovered,
+          errors: [],
+          success: true
+        });
+      }, 5000);
+    });
+  } catch (error) {
+    console.error("Error during discovery:", error);
+    
+    return {
+      urlsTotal: 0,
+      urlsProcessed: 0,
+      urlsSkipped: 0,
+      chunksIngested: 0,
+      queriesTotal: queries.length,
+      queriesProcessed: 0,
+      urlsDiscovered: 0,
+      errors: [(error as Error).message || "Unknown error during discovery"],
       success: false
     };
   }

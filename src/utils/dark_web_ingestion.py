@@ -1,4 +1,3 @@
-
 """
 Dark Web Ingestion Module for SamGPT using TorPy and Chroma
 
@@ -17,6 +16,7 @@ Enhanced with security features:
 2. Vault integration for secrets management
 3. Structured logging with sensitive data redaction
 4. Anomaly detection and alerting
+5. Deep Explorer integration for URL discovery
 """
 
 import os
@@ -39,6 +39,9 @@ from stealth_net import StealthSession, randomize_environment_variables
 
 # Import the Vault integration
 from vault_integration import get_tor_credentials, get_database_config, get_webhook_url
+
+# Import Deep Explorer integration
+from deep_ingest import run_discovery_pipeline
 
 # Environment variable configuration with defaults from Vault or environment
 tor_creds = get_tor_credentials()
@@ -478,6 +481,59 @@ class DarkWebIngestion:
         stats["chunks_ingested"] += len(chunks)
         stats["urls_processed"] += 1
         logger.info(f"Successfully ingested URL with {len(chunks)} chunks")
+    
+    @anomaly_detector
+    def discover_and_ingest(self, queries: List[str], limit_per_query: int = 20) -> Dict[str, Any]:
+        """
+        Discover .onion URLs using Deep Explorer and ingest their content.
+        
+        Args:
+            queries: List of search queries to use for discovery
+            limit_per_query: Maximum number of URLs to discover per query
+            
+        Returns:
+            Dictionary with statistics about the ingestion process
+        """
+        discovery_stats = {
+            "queries_total": len(queries),
+            "queries_processed": 0,
+            "urls_discovered": 0,
+            "errors": []
+        }
+        
+        try:
+            logger.info(f"Starting URL discovery with {len(queries)} queries")
+            
+            # Run the discovery pipeline to get .onion URLs
+            discovered_urls = run_discovery_pipeline(queries, limit_per_query)
+            discovery_stats["urls_discovered"] = len(discovered_urls)
+            discovery_stats["queries_processed"] = len(queries)
+            
+            if not discovered_urls:
+                logger.warning("No URLs discovered from queries")
+                discovery_stats["errors"].append("No URLs discovered")
+                return {**discovery_stats, "ingestion_stats": None}
+            
+            # Log the discovered URLs (sanitized for security)
+            logger.info(f"Discovered {len(discovered_urls)} unique .onion URLs")
+            
+            # Ingest the discovered URLs
+            logger.info("Starting ingestion of discovered URLs")
+            ingestion_stats = self.ingest_onion(discovered_urls)
+            
+            # Combine stats
+            result = {
+                **discovery_stats,
+                "ingestion_stats": ingestion_stats
+            }
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Error in discovery and ingestion: {str(e)}"
+            logger.error(error_msg)
+            discovery_stats["errors"].append(error_msg)
+            return {**discovery_stats, "ingestion_stats": None}
 
 def load_url_list(file_path: str) -> List[str]:
     """
@@ -502,7 +558,8 @@ def load_url_list(file_path: str) -> List[str]:
         return [line.strip() for line in content.split('\n') if line.strip()]
 
 @anomaly_detector
-def main(url_file: str = None, urls: List[str] = None, stealth_mode: bool = False):
+def main(url_file: str = None, urls: List[str] = None, stealth_mode: bool = False, 
+         discovery_queries: List[str] = None, discovery_limit: int = 20):
     """
     Entry point for dark web ingestion.
     
@@ -510,6 +567,8 @@ def main(url_file: str = None, urls: List[str] = None, stealth_mode: bool = Fals
         url_file: Path to a file containing URLs (JSON array or one URL per line)
         urls: List of URLs to ingest (alternative to url_file)
         stealth_mode: Use enhanced stealth mode with multi-hop circuits
+        discovery_queries: List of search queries to discover .onion URLs
+        discovery_limit: Maximum number of URLs to discover per query
     """
     # Enable stealth mode if specified
     if stealth_mode:
@@ -520,39 +579,62 @@ def main(url_file: str = None, urls: List[str] = None, stealth_mode: bool = Fals
     
     url_list = []
     
+    # Initialize ingestion
+    ingestion = DarkWebIngestion()
+    
+    # Run discovery if queries provided
+    if discovery_queries:
+        logger.info(f"Running discovery with {len(discovery_queries)} queries")
+        discovery_results = ingestion.discover_and_ingest(discovery_queries, discovery_limit)
+        
+        logger.info(f"Discovery summary:")
+        logger.info(f"- Queries processed: {discovery_results['queries_processed']}")
+        logger.info(f"- URLs discovered: {discovery_results['urls_discovered']}")
+        
+        if discovery_results.get("ingestion_stats"):
+            stats = discovery_results["ingestion_stats"]
+            logger.info(f"- URLs processed: {stats['urls_processed']}")
+            logger.info(f"- Chunks ingested: {stats['chunks_ingested']}")
+        
+        if discovery_results["errors"]:
+            logger.warning(f"Discovery errors: {len(discovery_results['errors'])}")
+            for error in discovery_results["errors"][:5]:
+                logger.warning(f"- {error}")
+    
     # Get URLs from file if specified
     if url_file:
-        url_list = load_url_list(url_file)
-        logger.info(f"Loaded {len(url_list)} URLs from file")
+        file_urls = load_url_list(url_file)
+        logger.info(f"Loaded {len(file_urls)} URLs from file")
+        url_list.extend(file_urls)
     
     # Use provided URL list if given
     if urls:
         url_list.extend(urls)
         logger.info(f"Added {len(urls)} URLs from direct input")
     
-    # Validate we have URLs to process
-    if not url_list:
-        logger.error("No URLs to process. Provide either url_file or urls.")
-        return
-    
-    # Initialize and run ingestion
-    ingestion = DarkWebIngestion()
-    stats = ingestion.ingest_onion(url_list)
-    
-    # Report results
-    logger.info(f"Ingestion summary:")
-    logger.info(f"- Total URLs: {stats['urls_total']}")
-    logger.info(f"- Processed: {stats['urls_processed']}")
-    logger.info(f"- Skipped: {stats['urls_skipped']}")
-    logger.info(f"- Chunks ingested: {stats['chunks_ingested']}")
-    
-    if stats['errors']:
-        logger.warning(f"Encountered {len(stats['errors'])} errors")
-        for error in stats['errors'][:5]:  # Show first 5 errors
-            logger.warning(f"- {error}")
+    # Process direct URLs if any
+    if url_list:
+        logger.info(f"Processing {len(url_list)} direct URLs")
+        stats = ingestion.ingest_onion(url_list)
         
-        if len(stats['errors']) > 5:
-            logger.warning(f"- ... and {len(stats['errors']) - 5} more errors")
+        # Report results
+        logger.info(f"Direct ingestion summary:")
+        logger.info(f"- Total URLs: {stats['urls_total']}")
+        logger.info(f"- Processed: {stats['urls_processed']}")
+        logger.info(f"- Skipped: {stats['urls_skipped']}")
+        logger.info(f"- Chunks ingested: {stats['chunks_ingested']}")
+        
+        if stats['errors']:
+            logger.warning(f"Encountered {len(stats['errors'])} errors")
+            for error in stats['errors'][:5]:
+                logger.warning(f"- {error}")
+            
+            if len(stats['errors']) > 5:
+                logger.warning(f"- ... and {len(stats['errors']) - 5} more errors")
+    
+    # If neither direct URLs nor discovery was done, show error
+    if not url_list and not discovery_queries:
+        logger.error("No URLs or discovery queries provided. Use --file, --url, or --discover")
 
 if __name__ == "__main__":
     import argparse
@@ -560,10 +642,18 @@ if __name__ == "__main__":
     parser.add_argument("--file", "-f", help="Path to file containing .onion URLs")
     parser.add_argument("--url", "-u", action="append", help="Direct .onion URL to ingest (can be used multiple times)")
     parser.add_argument("--stealth-mode", action="store_true", help="Use enhanced stealth features")
+    parser.add_argument("--discover", "-d", action="append", help="Search query for discovering .onion URLs")
+    parser.add_argument("--limit", "-l", type=int, default=20, help="Maximum URLs to discover per query")
     
     args = parser.parse_args()
     
-    if not args.file and not args.url:
-        parser.error("No URLs provided. Use --file or --url")
+    if not args.file and not args.url and not args.discover:
+        parser.error("No input provided. Use --file, --url, or --discover")
     
-    main(url_file=args.file, urls=args.url, stealth_mode=args.stealth_mode)
+    main(
+        url_file=args.file, 
+        urls=args.url, 
+        stealth_mode=args.stealth_mode,
+        discovery_queries=args.discover,
+        discovery_limit=args.limit
+    )
