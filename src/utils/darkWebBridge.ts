@@ -42,38 +42,76 @@ export async function callDarkWebAPI(
     
     const response = await fetch(url, options);
     
+    // Check if response is OK
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`API call failed (${response.status}): ${errorText}`);
     }
     
-    return await response.json();
+    // Check content type to determine how to parse the response
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await response.json();
+    } else {
+      // If not JSON, return the text response
+      const textResponse = await response.text();
+      console.log(`Received non-JSON response: ${textResponse.substring(0, 100)}...`);
+      
+      // In development mode, use simulated responses
+      if (process.env.NODE_ENV === 'development') {
+        return simulateSuccessResponse(endpoint);
+      }
+      
+      // For production, try to parse the response or return a default
+      try {
+        // Attempt to extract JSON from HTML or text response (sometimes APIs embed JSON in HTML)
+        const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]);
+        }
+      } catch (e) {
+        console.warn("Could not parse response as JSON", e);
+      }
+      
+      // Return a standardized object with the text response
+      return { 
+        status: 'unknown',
+        textResponse: textResponse.substring(0, 500),
+        success: false
+      };
+    }
   } catch (error) {
     console.error(`Error calling dark web API (${endpoint}):`, error);
     
     // In development, simulate successful responses
     if (process.env.NODE_ENV === 'development') {
       console.log(`Development mode: Simulating successful API call to ${endpoint}`);
-      
-      // Return appropriate simulated responses based on endpoint
-      if (endpoint === 'status') {
-        return { status: 'available' };
-      } else if (endpoint === 'logs') {
-        return { 
-          logs: [
-            "2023-05-09 13:45:22 - dark_web_ingestion - INFO - Initializing with ultimate stealth mode",
-            "2023-05-09 13:45:28 - stealth_net - INFO - Stealth session initialized with 3 Tor hops",
-            "2023-05-09 13:45:30 - stealth_net - INFO - Making GET request through Tor (3 hops)"
-          ]
-        };
-      }
-      
-      // Default simulated response for other endpoints
-      return { success: true };
+      return simulateSuccessResponse(endpoint);
     }
     
     throw error;
   }
+}
+
+/**
+ * Generate simulated responses for development mode
+ */
+function simulateSuccessResponse(endpoint: string): any {
+  // Return appropriate simulated responses based on endpoint
+  if (endpoint === 'status') {
+    return { status: 'available' };
+  } else if (endpoint === 'logs') {
+    return { 
+      logs: [
+        "2023-05-09 13:45:22 - dark_web_ingestion - INFO - Initializing with ultimate stealth mode",
+        "2023-05-09 13:45:28 - stealth_net - INFO - Stealth session initialized with 3 Tor hops",
+        "2023-05-09 13:45:30 - stealth_net - INFO - Making GET request through Tor (3 hops)"
+      ]
+    };
+  }
+  
+  // Default simulated response for other endpoints
+  return { success: true };
 }
 
 /**
@@ -82,13 +120,21 @@ export async function callDarkWebAPI(
  */
 export async function initDarkWebBridge(): Promise<boolean> {
   try {
+    console.log("Initializing dark web bridge...");
     const status = await callDarkWebAPI('status');
     
     if (status.status === 'available' || status.status === 'running') {
       console.log("Dark web bridge initialized successfully");
       return true;
     } else {
-      console.warn("Dark web service is unavailable");
+      console.warn("Dark web service is unavailable", status);
+      
+      // In development mode, proceed with simulated bridge
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Development mode: Proceeding with simulated dark web bridge");
+        return true;
+      }
+      
       return false;
     }
   } catch (error) {
@@ -96,6 +142,7 @@ export async function initDarkWebBridge(): Promise<boolean> {
     
     if (process.env.NODE_ENV === 'development') {
       console.log("Development mode: Proceeding with simulated dark web bridge");
+      toast.info("Using simulated TorPy connection (development mode)");
       return true;
     }
     
