@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { X, Shield, Wifi, WifiOff, Lock } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import ModelSelector, { Model } from './ModelSelector';
 import { checkDarkWebServiceStatus, DarkWebServiceStatus } from '@/utils/dark_web_connector';
-import { toast } from 'react-toastify';
+import { toast } from "sonner";
 
 interface SettingsPanelProps {
   isOpen: boolean;
