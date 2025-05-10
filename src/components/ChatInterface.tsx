@@ -6,7 +6,9 @@ import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 import ChatSidebar from './ChatSidebar';
 import { Button } from '@/components/ui/button';
-import { Book, MessageSquare, Edit, Edit2 } from 'lucide-react';
+import { Book, MessageSquare, Edit, Edit2, Shield, Wifi } from 'lucide-react';
+import { toast } from 'sonner';
+import { checkDarkWebServiceStatus, DarkWebServiceStatus } from '@/utils/dark_web_connector';
 
 interface ChatInterfaceProps {
   temperature: number;
@@ -29,6 +31,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isResearching, setIsResearching] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
+  const [isTorActive, setIsTorActive] = useState(false);
+  const [isCheckingTor, setIsCheckingTor] = useState(false);
   
   const { 
     messages, 
@@ -44,6 +48,39 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     handleDeleteChat,
     handleRenameChat
   } = useChatOperations(temperature, webSearch, darkWeb, modelId);
+  
+  // Check TorPy status
+  const checkTorStatus = async () => {
+    if (isCheckingTor) return;
+    
+    setIsCheckingTor(true);
+    try {
+      const status = await checkDarkWebServiceStatus();
+      
+      if (status === DarkWebServiceStatus.AVAILABLE) {
+        setIsTorActive(true);
+        toast.success("TorPy is available and ready to use", {
+          description: "Dark web access is now enabled for enhanced research capabilities."
+        });
+      } else if (status === DarkWebServiceStatus.RUNNING) {
+        setIsTorActive(true);
+        toast.success("TorPy is currently running", {
+          description: "Dark web operations are in progress."
+        });
+      } else {
+        setIsTorActive(false);
+        toast.error("TorPy is currently unavailable", {
+          description: "Please check your configuration or try again later."
+        });
+      }
+    } catch (error) {
+      console.error("Error checking TorPy status:", error);
+      toast.error("Failed to connect to TorPy service");
+      setIsTorActive(false);
+    } finally {
+      setIsCheckingTor(false);
+    }
+  };
   
   // Set focus on input when chat changes
   useEffect(() => {
@@ -178,6 +215,36 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 </>
               )}
             </Button>
+            
+            {/* TorPy Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              className={`gap-2 px-4 py-2 shadow-sm ${
+                isTorActive 
+                  ? "bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200" 
+                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+              }`}
+              onClick={checkTorStatus}
+              disabled={isCheckingTor}
+            >
+              {isCheckingTor ? (
+                <>
+                  <div className="flex items-center gap-2 animate-pulse">
+                    <Shield className="h-4 w-4" />
+                    Connecting...
+                  </div>
+                </>
+              ) : (
+                <>
+                  {isTorActive ? <Wifi className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
+                  <span className="mr-1">TorPy</span>
+                  <span className="text-xs opacity-75">
+                    {isTorActive ? "(Connected)" : "(Secure Access)"}
+                  </span>
+                </>
+              )}
+            </Button>
           </div>
           
           <ChatInput
@@ -188,7 +255,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             handleNewChat={handleNewChat}
             temperature={temperature}
             webSearch={webSearch}
-            darkWeb={darkWeb}
+            darkWeb={darkWeb || isTorActive}
             modelId={modelId}
             inputRef={inputRef}
           />

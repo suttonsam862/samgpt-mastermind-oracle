@@ -1,11 +1,12 @@
 
-import React, { useRef } from 'react';
-import { X } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { X, Shield, Wifi, WifiOff, Lock } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import ModelSelector, { Model } from './ModelSelector';
+import { checkDarkWebServiceStatus, DarkWebServiceStatus } from '@/utils/dark_web_connector';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -35,6 +36,31 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onSelectModel
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [torStatus, setTorStatus] = useState<DarkWebServiceStatus>(DarkWebServiceStatus.UNAVAILABLE);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+
+  // Check TorPy availability when the dark web toggle is switched on
+  useEffect(() => {
+    if (darkWeb && !isCheckingStatus) {
+      checkTorAvailability();
+    }
+  }, [darkWeb]);
+
+  // Function to check TorPy availability
+  const checkTorAvailability = async () => {
+    if (isCheckingStatus) return;
+    
+    setIsCheckingStatus(true);
+    try {
+      const status = await checkDarkWebServiceStatus();
+      setTorStatus(status);
+    } catch (error) {
+      console.error("Error checking TorPy status:", error);
+      setTorStatus(DarkWebServiceStatus.UNAVAILABLE);
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -58,6 +84,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     e.preventDefault();
     e.stopPropagation();
     onClose();
+  };
+  
+  // Handle dark web toggle with TorPy check
+  const handleDarkWebToggle = (checked: boolean) => {
+    setDarkWeb(checked);
+    if (checked) {
+      checkTorAvailability();
+    }
   };
 
   return (
@@ -122,13 +156,34 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           
           <div className="flex justify-between items-center py-2">
             <div>
-              <Label htmlFor="dark-web" className="font-medium">Dark Web Access</Label>
+              <Label htmlFor="dark-web" className="font-medium">Dark Web Access (TorPy)</Label>
               <p className="text-xs text-samgpt-text/60">Enable TorPy & OnionScan for deep web search</p>
+              {darkWeb && (
+                <div className="flex items-center mt-1 text-xs">
+                  {isCheckingStatus ? (
+                    <span className="flex items-center text-yellow-400">
+                      <Lock className="h-3 w-3 mr-1 animate-pulse" /> Checking TorPy status...
+                    </span>
+                  ) : torStatus === DarkWebServiceStatus.AVAILABLE ? (
+                    <span className="flex items-center text-green-400">
+                      <Wifi className="h-3 w-3 mr-1" /> TorPy connected and secure
+                    </span>
+                  ) : torStatus === DarkWebServiceStatus.RUNNING ? (
+                    <span className="flex items-center text-blue-400">
+                      <Shield className="h-3 w-3 mr-1" /> TorPy operations in progress
+                    </span>
+                  ) : (
+                    <span className="flex items-center text-red-400">
+                      <WifiOff className="h-3 w-3 mr-1" /> TorPy unavailable
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <Switch 
               id="dark-web" 
               checked={darkWeb} 
-              onCheckedChange={setDarkWeb} 
+              onCheckedChange={handleDarkWebToggle} 
             />
           </div>
           
