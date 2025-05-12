@@ -22,7 +22,8 @@ const ENDPOINTS = {
   QUERY: 'query',
   LOGS: 'logs',
   EXPLORE: 'explore',
-  CIRCUIT: 'circuit'
+  CIRCUIT: 'circuit',
+  SECURITY: 'security'
 };
 
 // Queue and concurrency settings
@@ -46,12 +47,46 @@ const RETRY_DELAY_BASE = 1000; // Base delay in ms
 let activeRequests = 0;
 const requestQueue: QueueItem[] = [];
 
+// Anti-fingerprinting settings
+interface UserAgent {
+  agent: string;
+  weight: number;
+  platform: string;
+}
+
+// Common User-Agent strings with their usage weights
+const USER_AGENTS: UserAgent[] = [
+  { agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0", weight: 25, platform: "Windows" },
+  { agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/117.0", weight: 15, platform: "macOS" },
+  { agent: "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/117.0", weight: 10, platform: "Linux" },
+  { agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36", weight: 25, platform: "Windows" },
+  { agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36", weight: 15, platform: "macOS" },
+  { agent: "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36", weight: 10, platform: "Android" }
+];
+
+// Accept-Language variants
+const ACCEPT_LANGUAGES = [
+  "en-US,en;q=0.9",
+  "en-GB,en;q=0.9",
+  "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+  "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+  "es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7",
+  "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7"
+];
+
 // Circuit management
 const TOR_CIRCUITS = [
-  { id: 1, port: 9050, status: 'ready', lastUsed: 0, cooldown: false },
-  { id: 2, port: 9051, status: 'ready', lastUsed: 0, cooldown: false },
-  { id: 3, port: 9052, status: 'ready', lastUsed: 0, cooldown: false }
+  { id: 1, port: 9050, status: 'ready', lastUsed: 0, cooldown: false, requestCount: 0 },
+  { id: 2, port: 9051, status: 'ready', lastUsed: 0, cooldown: false, requestCount: 0 },
+  { id: 3, port: 9052, status: 'ready', lastUsed: 0, cooldown: false, requestCount: 0 }
 ];
+
+// Circuit rotation thresholds
+const CIRCUIT_ROTATION = {
+  MAX_REQUESTS: 8, // Rotate after 8 requests
+  MIN_INTERVAL: 1000 * 60 * 5, // 5 minutes
+  MAX_INTERVAL: 1000 * 60 * 10 // 10 minutes
+};
 
 // Cache management
 interface CacheEntry {
@@ -69,10 +104,31 @@ function initRequestProcessor() {
   // Start the queue processor if not already running
   setInterval(processQueue, 100);
   console.log("Tor request processor initialized");
+  
+  // Setup random circuit rotation intervals
+  setupRandomCircuitRotation();
 }
 
 // Initialize on module load
 initRequestProcessor();
+
+/**
+ * Setup random circuit rotation intervals for enhanced security
+ */
+function setupRandomCircuitRotation() {
+  TOR_CIRCUITS.forEach(circuit => {
+    // For each circuit, set a random rotation interval
+    const randomInterval = CIRCUIT_ROTATION.MIN_INTERVAL + 
+      Math.random() * (CIRCUIT_ROTATION.MAX_INTERVAL - CIRCUIT_ROTATION.MIN_INTERVAL);
+    
+    setInterval(() => {
+      if (circuit.status === 'ready' && !circuit.cooldown && circuit.requestCount > 0) {
+        console.log(`Automatic circuit rotation for circuit ${circuit.id} after ${Math.round(randomInterval/1000)}s`);
+        rotateCircuit(circuit.id);
+      }
+    }, randomInterval);
+  });
+}
 
 /**
  * Process the request queue with adaptive concurrency
@@ -123,6 +179,10 @@ async function executeRequest(request: QueueItem, circuitId: number): Promise<vo
   // Update circuit status
   circuit.lastUsed = Date.now();
   circuit.status = 'busy';
+  circuit.requestCount++; // Increment request count for this circuit
+  
+  // Check if circuit needs rotation based on request count
+  const needsRotation = circuit.requestCount >= CIRCUIT_ROTATION.MAX_REQUESTS;
   
   try {
     // Add random jitter before request (0.5-2s)
@@ -132,9 +192,13 @@ async function executeRequest(request: QueueItem, circuitId: number): Promise<vo
     // Build the URL with circuit port info
     const url = `${API_BASE_URL}/${request.endpoint}`;
     
+    // Generate randomized request headers for anti-fingerprinting
+    const headers = generateRandomHeaders();
+    
     const options: RequestInit = {
       method: request.method,
       headers: {
+        ...headers,
         'Content-Type': 'application/json',
         'X-Client-Version': '1.0.0',
         'X-Circuit-Id': circuitId.toString(),
@@ -167,6 +231,12 @@ async function executeRequest(request: QueueItem, circuitId: number): Promise<vo
     
     // Success, resolve the promise
     request.resolve(result);
+    
+    // Rotate circuit if needed after successful request
+    if (needsRotation) {
+      console.log(`Circuit ${circuitId} has processed ${circuit.requestCount} requests - rotating`);
+      rotateCircuit(circuitId);
+    }
   } catch (error) {
     console.error(`Error in Tor request (circuit ${circuitId}):`, error);
     
@@ -238,6 +308,11 @@ export async function rotateCircuit(circuitId: number) {
     // Skip actual API call in dev mode
     if (process.env.NODE_ENV === 'development') {
       console.log(`[DEV] Simulated circuit rotation for circuit ${circuitId}`);
+      
+      // Reset request counter even in dev mode
+      if (circuit) {
+        circuit.requestCount = 0;
+      }
       return;
     }
     
@@ -249,6 +324,11 @@ export async function rotateCircuit(circuitId: number) {
       },
       body: JSON.stringify({ circuitId })
     });
+    
+    // Reset request counter for this circuit
+    if (circuit) {
+      circuit.requestCount = 0;
+    }
     
     console.log(`Circuit ${circuitId} rotated successfully`);
   } catch (error) {
@@ -306,6 +386,40 @@ function cleanCache(): void {
 
 // Set up periodic cache cleaning
 setInterval(cleanCache, 60000); // Clean every minute
+
+/**
+ * Generate randomized request headers for anti-fingerprinting
+ */
+function generateRandomHeaders(): Record<string, string> {
+  // Select a random user agent based on weights
+  let totalWeight = USER_AGENTS.reduce((sum, agent) => sum + agent.weight, 0);
+  let randomWeight = Math.random() * totalWeight;
+  let selectedAgent = USER_AGENTS[0];
+  
+  for (const agent of USER_AGENTS) {
+    if (randomWeight < agent.weight) {
+      selectedAgent = agent;
+      break;
+    }
+    randomWeight -= agent.weight;
+  }
+  
+  // Generate randomized headers
+  return {
+    'User-Agent': selectedAgent.agent,
+    'Accept-Language': ACCEPT_LANGUAGES[Math.floor(Math.random() * ACCEPT_LANGUAGES.length)],
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'DNT': Math.random() > 0.5 ? '1' : undefined,
+    'Sec-Fetch-Dest': Math.random() > 0.5 ? 'document' : undefined,
+    'Sec-Fetch-Mode': Math.random() > 0.5 ? 'navigate' : undefined,
+    'Sec-Fetch-Site': Math.random() > 0.5 ? 'none' : undefined,
+    'Sec-Fetch-User': Math.random() > 0.7 ? '?1' : undefined,
+    'Upgrade-Insecure-Requests': '1',
+    'Pragma': 'no-cache',
+    'Cache-Control': 'no-cache',
+    'Accept-Encoding': 'gzip, deflate, br',
+  };
+}
 
 /**
  * Queue a request to the Tor network
@@ -539,5 +653,115 @@ export async function getTorNetworkStats(): Promise<any> {
       averageLatency: 0,
       circuits: []
     };
+  }
+}
+
+/**
+ * Request the execution of an isolated container job through the backend
+ * @param jobType The type of isolated job to run
+ * @param jobData Data needed for the job
+ */
+export async function runIsolatedJob(jobType: string, jobData: any): Promise<any> {
+  try {
+    // Jobs should never be cached
+    return await queueTorRequest(
+      `jobs/${jobType}`,
+      'POST',
+      jobData,
+      { cacheTTL: null, priority: 2 }
+    );
+  } catch (error) {
+    console.error(`Error running isolated job (${jobType}):`, error);
+    throw new Error(`Failed to run isolated job: ${error.message}`);
+  }
+}
+
+/**
+ * Verify the security configuration of the Tor setup
+ */
+export async function verifySecurityConfiguration(): Promise<{
+  leakProtection: boolean,
+  fingerprinting: boolean,
+  dnsProtection: boolean,
+  ipProtection: boolean,
+  containerIsolation: boolean,
+}> {
+  try {
+    const result = await queueTorRequest(
+      ENDPOINTS.SECURITY + '/verify',
+      'GET',
+      undefined,
+      { cacheTTL: 60 * 1000, priority: 3 }
+    );
+    
+    return result;
+  } catch (error) {
+    console.error('Error verifying security configuration:', error);
+    // Return pessimistic defaults
+    return {
+      leakProtection: false,
+      fingerprinting: false,
+      dnsProtection: false,
+      ipProtection: false,
+      containerIsolation: false
+    };
+  }
+}
+
+/**
+ * Initialize an ephemeral job container for isolated tasks
+ * @param jobConfig Configuration for the ephemeral job
+ */
+export async function createEphemeralJob(jobConfig: {
+  urls: string[],
+  depth: number,
+  timeout: number,
+  userAgent?: string,
+  acceptLanguage?: string,
+  useTls?: boolean
+}): Promise<{jobId: string}> {
+  try {
+    // Submit ephemeral job request
+    const response = await queueTorRequest(
+      'jobs/ephemeral',
+      'POST',
+      {
+        ...jobConfig,
+        // If user didn't specify custom fingerprinting, use random ones
+        userAgent: jobConfig.userAgent || generateRandomHeaders()['User-Agent'],
+        acceptLanguage: jobConfig.acceptLanguage || ACCEPT_LANGUAGES[Math.floor(Math.random() * ACCEPT_LANGUAGES.length)],
+      },
+      { cacheTTL: null, priority: 3 }
+    );
+    
+    if (!response || !response.jobId) {
+      throw new Error("Failed to create ephemeral job");
+    }
+    
+    toast(`Ephemeral job created with ID: ${response.jobId}`);
+    return response;
+  } catch (error) {
+    console.error('Error creating ephemeral job:', error);
+    toast.error(`Failed to create ephemeral job: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Get status of an ephemeral job
+ * @param jobId The ID of the ephemeral job
+ */
+export async function getEphemeralJobStatus(jobId: string): Promise<any> {
+  try {
+    // Very brief cache for job status (5 seconds)
+    return await queueTorRequest(
+      `jobs/ephemeral/${jobId}`,
+      'GET',
+      undefined,
+      { cacheTTL: 5 * 1000 }
+    );
+  } catch (error) {
+    console.error(`Error getting status for ephemeral job ${jobId}:`, error);
+    throw error;
   }
 }

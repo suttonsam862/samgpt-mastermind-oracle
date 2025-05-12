@@ -156,7 +156,7 @@ const TorNetworkStatus: React.FC<TorNetworkStatusProps> = ({
       setTimeout(loadCircuitInfo, 2000);
     } catch (error) {
       console.error(`Failed to rotate circuit ${circuitId}:`, error);
-      toast(`Failed to rotate circuit ${circuitId}`);
+      toast.error(`Failed to rotate circuit ${circuitId}`);
       
       // Revert status
       setCircuits(prev => 
