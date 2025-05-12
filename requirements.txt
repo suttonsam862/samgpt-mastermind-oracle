@@ -13,6 +13,15 @@ pysocks>=1.7.1      # For SOCKS proxy support
 pyptlib>=0.0.6      # For Tor pluggable transports
 cryptography>=41.0.3 # For secure operations
 
+# Web scraping with Scrapy
+scrapy>=2.8.0       # Web crawling framework
+readability-lxml>=0.8.1  # For content extraction
+scrapy-rotating-proxies>=0.6.2  # For proxy rotation
+scrapy-user-agents>=0.1.1  # For rotating user agents
+w3lib>=2.1.0        # Web utility functions
+twisted>=22.4.0     # Event-driven networking
+extruct>=0.14.0     # Metadata extraction from HTML
+
 # Security scanning tools
 pip-audit>=2.5.5
 safety>=2.3.5

@@ -1,5 +1,6 @@
 
 # Torrc configuration with multiple circuits, bridges, and pluggable transports
+# Enhanced for automatic circuit rotation
 
 # Basic Tor configuration
 DataDirectory /var/lib/tor
@@ -42,11 +43,22 @@ Bridge obfs4 X.X.X.X:XXXX FINGERPRINT cert=XXXX iat-mode=0
 # meek bridge example
 Bridge meek 0.0.0.1:1 url=https://meek-reflect.appspot.com/ front=www.google.com
 
-# Enforce entry node rotation
-NewCircuitPeriod 300
-MaxCircuitDirtiness 600
+# Enhanced circuit rotation settings
+# Set to aggressive values for better anonymity
+NewCircuitPeriod 60  # Create a new circuit every 60 seconds
+MaxCircuitDirtiness 600  # Consider circuits dirty after 10 minutes
+CircuitBuildTimeout 60  # Give up on circuit creation after 60 seconds
+NumEntryGuards 6  # Use 6 entry guards (default is 3)
+NumDirectoryGuards 6  # Use 6 directory guards
+PathsNeededToBuildCircuits 0.95  # Wait until 95% of paths are available (more conservative)
 
-# Protect against certain attacks
+# Optimize for connection handling - important for scrapy's concurrency
+KeepalivePeriod 60  # Send keepalives every 60 seconds
+CircuitPriorityHalflife 30  # Deprioritize circuits slowly
+LearnCircuitBuildTimeout 1  # Learn circuit build timeouts
+WarnUnsafeSocks 1  # Warn about unsafe SOCKS configuration
+
+# Enhanced padding for traffic analysis protection
 ConnectionPadding 1
 ReducedConnectionPadding 0
 CircuitPadding 1
@@ -55,3 +67,9 @@ ReducedCircuitPadding 0
 # Misc security settings
 SafeSocks 1
 NoExec 1
+
+# Onion service connection settings
+# These help with .onion site connections
+HiddenServiceStatistics 0  # Don't collect statistics
+TestSocks 1  # Test SOCKS connections
+
